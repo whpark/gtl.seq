@@ -61,6 +61,7 @@ namespace gtl::seq::inline v01 {
 		/// @brief 
 		struct promise_type {
 			sState m_state;
+			bool bOverwritten{};
 			std::exception_ptr m_exception;
 
 			coroutine_handle_t get_return_object() {
@@ -72,9 +73,17 @@ namespace gtl::seq::inline v01 {
 
 			std::suspend_always yield_value(sState state) {
 				m_state = state;
+				bOverwritten = true;
 				return {};
 			}
 			void return_void() {}
+		};
+
+		struct suspend_or_not {
+			bool bAwaitReady{};
+			bool await_ready() const noexcept { return bAwaitReady; }
+			constexpr void await_suspend(std::coroutine_handle<>) const noexcept {}
+			constexpr void await_resume() const noexcept {}
 		};
 
 	protected:
@@ -113,7 +122,9 @@ namespace gtl::seq::inline v01 {
 			return *this;
 		}
 		xSequence& operator = (coroutine_handle_t&& h) {
-			//assert(m_handle == nullptr);
+			if (m_handle != nullptr) {
+				throw std::exception("xSequence::operator = (coroutine_handle_t&&) : already has handle");
+			}
 			m_handle = std::exchange(h, nullptr);
 			return *this;
 		}
@@ -215,6 +226,10 @@ namespace gtl::seq::inline v01 {
 			return true;
 		}
 		bool ReserveResume(clock_t::duration dur) { return ReserveResume(dur.count() ? clock_t::now() + dur : clock_t::time_point{}); }
+
+		/// @brief 
+		/// @return direct child sequence count
+		auto CountChild() const { return m_children.size(); }
 
 		/// @brief 
 		/// @param name Task Name
@@ -336,6 +351,22 @@ namespace gtl::seq::inline v01 {
 			return clock_t::time_point::max();
 		}
 
+		// co_await
+		auto WaitFor(clock_t::duration d) {
+			ReserveResume(d);
+			return std::suspend_always{};
+		}
+		// co_await
+		auto WaitUntil(clock_t::time_point t) {
+			ReserveResume(t);
+			return std::suspend_always{};
+		}
+		// co_await
+		auto WaitForChild() {
+			ReserveResume(clock_t::duration{});
+			return suspend_or_not{ .bAwaitReady = m_children.empty()};
+		}
+
 	protected:
 		/// @brief Dispatch.
 		/// @return true if need next dispatch
@@ -381,14 +412,17 @@ namespace gtl::seq::inline v01 {
 				// if no more child sequence, Dispatch Self
 				if (m_children.empty() and m_handle and !m_handle.done()) {
 					m_state.tNextDispatch = clock_t::time_point::max();
-					m_handle.promise().m_state.tNextDispatch = clock_t::time_point::max();
+					m_handle.promise().bOverwritten = false;
 
 					// Dispatch
 					s_seqCurrent = this;
 					m_handle.resume();
 					s_seqCurrent = nullptr;
 
-					m_state = m_handle.promise().m_state;
+					if (auto& promise = m_handle.promise(); promise.bOverwritten) {
+						m_state = promise.m_state;
+						promise.bOverwritten = false;
+					}
 					bContinue = !m_children.empty();	// if new child sequence added, continue to dispatch child
 					if (m_handle.promise().m_exception) {
 						std::rethrow_exception(m_handle.promise().m_exception);
@@ -399,6 +433,7 @@ namespace gtl::seq::inline v01 {
 			return !IsDone();
 		}
 
-	};
+	};	// xSequence
+
 
 };

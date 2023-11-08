@@ -8,7 +8,7 @@ project ("gtl.seq")
 include_directories ("include")
 
 #add C++20
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 # Include sub-projects.
 add_subdirectory ("examples")

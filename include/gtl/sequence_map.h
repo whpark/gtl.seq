@@ -40,7 +40,7 @@ namespace gtl::seq::inline v01 {
 	protected:
 		unit_id_t m_unit;
 		this_t* m_parent{};
-		std::set<this_t*> m_children;
+		std::set<this_t*> m_mapChildren;
 		map_t m_mapFuncs;
 
 	public:
@@ -68,7 +68,7 @@ namespace gtl::seq::inline v01 {
 			m_unit = std::exchange(b.m_unit, {});
 			m_top = std::exchange(b.m_top, nullptr);
 			m_sequence_driver = std::exchange(b.m_sequence_driver, nullptr);
-			m_children.swap(b.m_children);
+			m_mapChildren.swap(b.m_mapChildren);
 
 			if (m_parent)
 				m_parent->Register(this);
@@ -82,12 +82,12 @@ namespace gtl::seq::inline v01 {
 		/// @brief Register/Unregister this unit
 		inline void Register(this_t* child) {
 			if (child) {
-				m_children.insert(child);
+				m_mapChildren.insert(child);
 			}
 		}
 		inline void Unregister(this_t* child) {
 			if (child) {
-				m_children.erase(child);
+				m_mapChildren.erase(child);
 			}
 		}
 
@@ -119,7 +119,7 @@ namespace gtl::seq::inline v01 {
 		auto FindUnitDFS(this auto&& self, seq_id_t const& unit) -> decltype(&self) {
 			if (self.m_unit == unit)
 				return &self;
-			for (auto* child : self.m_children) {
+			for (auto* child : self.m_mapChildren) {
 				if (auto* unitTarget = child->FindUnitDFS(unit))
 					return unitTarget;
 			}
@@ -129,7 +129,7 @@ namespace gtl::seq::inline v01 {
 		this_t const* FindUnitDFS(seq_id_t const& unit) const {
 			if (m_unit == unit)
 				return this;
-			for (auto* child : m_children) {
+			for (auto* child : m_mapChildren) {
 				if (auto* unitTarget = child->FindUnitDFS(unit))
 					return unitTarget;
 			}
@@ -210,12 +210,30 @@ namespace gtl::seq::inline v01 {
 				parent.CreateChildSequence<std::shared_ptr<sParam>>(name, handler, std::move(params));
 				count++;
 			}
-			for (auto* child : m_children) {
+			for (auto* child : m_mapChildren) {
 				count += child->BroadcastSequence(parent, name, params);
 			}
 			return count;
 		}
 
+		// co_await
+		auto WaitFor(clock_t::duration d) {
+			if (auto* cur = m_sequence_driver->GetCurrentSequence())
+				return cur->WaitFor(d);
+			throw std::exception("WaitFor() must be called from sequence function");
+		}
+		// co_await
+		auto WaitUntil(clock_t::time_point t) {
+			if (auto* cur = m_sequence_driver->GetCurrentSequence())
+				return cur->WaitUntil(t);
+			throw std::exception("WaitFor() must be called from sequence function");
+		}
+		// co_await
+		auto WaitForChild() {
+			if (auto* cur = m_sequence_driver->GetCurrentSequence())
+				return cur->WaitForChild();
+			throw std::exception("WaitFor() must be called from sequence function");
+		}
 	};
 
 
