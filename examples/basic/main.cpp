@@ -11,12 +11,13 @@
 #include "gtl/sequence.h"
 #include "gtl/sequence_map.h"
 
-using seq_t = gtl::seq::xSequence;
-using seq_map_t = gtl::seq::TSequenceMap<std::string, std::string>;
+using seq_t = gtl::seq::TSequence<std::string>;
+using seq_map_t = gtl::seq::TSequenceMap<seq_t::result_t>;
 
 using namespace std::literals;
 namespace chrono = std::chrono;
 //using namespace gtl::literals;
+
 
 seq_t Sequence1() {
 	auto* self = seq_t::GetCurrentSequence();
@@ -39,7 +40,7 @@ seq_t Sequence1() {
 	auto t2 = chrono::steady_clock::now();
 	fmt::print("step3 : {:>8}\n", chrono::duration_cast<chrono::milliseconds>(t2 - t1));
 
-	co_return;
+	co_return "";
 }
 
 seq_t TopSeq();
@@ -65,7 +66,7 @@ seq_t TopSeq() {
 
 	// step 2
 	auto t1 = gtl::seq::clock_t::now();
-	fmt::print("{}: Child 1 Done, {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1 - t0));
+	fmt::print("{}: Child 1 Done, {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1-t0));
 
 	auto t2 = gtl::seq::clock_t::now();
 	fmt::print("{}: WaitFor 100ms, {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t2 - t1));
@@ -73,6 +74,8 @@ seq_t TopSeq() {
 
 	// step 3
 	fmt::print("{}: End\n", funcname);
+
+	co_return "";
 }
 
 seq_t Child1() {
@@ -95,6 +98,8 @@ seq_t Child1() {
 
 	// step 3
 	fmt::print("{}: End\n", funcname);
+	
+	co_return "";
 }
 
 seq_t Child1_1() {
@@ -109,10 +114,12 @@ seq_t Child1_1() {
 	fmt::print("{}: Begin\n", funcname);
 	for (int i = 0; i < 5; i++) {
 		auto t1 = gtl::seq::clock_t::now();
-		fmt::print("{}: doing some job... and wait for 200ms : {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1 - t0));
+		fmt::print("{}: doing some job... and wait for 200ms : {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1-t0));
 		co_await self->WaitFor(200ms);
 	}
 	fmt::print("{}: End. Creating Child1_1, Child1_2\n", funcname);
+	
+	co_return "";
 }
 
 seq_t Child1_2() {
@@ -131,10 +138,12 @@ seq_t Child1_2() {
 		co_await self->WaitFor(200ms);
 	}
 	fmt::print("{}: End. Creating Child1_1, Child1_2\n", funcname);
+	
+	co_return "";
 }
 
 seq_t Child2() {
-	co_return;
+	co_return "";
 }
 
 int main() {

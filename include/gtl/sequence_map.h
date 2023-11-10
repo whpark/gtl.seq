@@ -16,26 +16,23 @@ namespace gtl::seq::inline v01 {
 
 	//-------------------------------------------------------------------------
 	/// @brief sequence map (unit tree, sequence function map) manager
-	template < typename tParamIn, typename tParamOut = tParamIn >
+	template < typename tResult, typename tParam = tResult >
 	class TSequenceMap {
 	public:
 		using this_t = TSequenceMap;
+		using result_t = tResult;
+		using param_t = tParam;
+		using seq_t = TSequence<result_t>;
+
 		using unit_id_t = std::string;
-		using param_in_t = tParamIn;
-		using param_out_t = tParamOut;
-		using sequence_t = xSequence;
 
 	public:
 		using this_t = TSequenceMap;
-		struct sParam {
-			param_in_t in{};
-			param_out_t out{};
-		};
-		using handler_t = std::function<xSequence(std::shared_ptr<sParam>)>;
+		using handler_t = std::function<seq_t(param_t)>;
 		using map_t = std::map<seq_id_t, handler_t>;
 
 	private:
-		xSequence* m_sequence_driver{};
+		seq_t* m_sequence_driver{};
 		this_t* m_top{};
 	protected:
 		unit_id_t m_unit;
@@ -48,7 +45,7 @@ namespace gtl::seq::inline v01 {
 		TSequenceMap(unit_id_t unit, this_t& parent) : m_unit(std::move(unit)), m_parent(&parent), m_top(parent.m_top), m_sequence_driver(parent.m_sequence_driver) {
 			m_parent->Register(this);
 		}
-		TSequenceMap(unit_id_t unit, xSequence& driver) : m_unit(std::move(unit)), m_sequence_driver(&driver), m_top(this) {
+		TSequenceMap(unit_id_t unit, seq_t& driver) : m_unit(std::move(unit)), m_sequence_driver(&driver), m_top(this) {
 		}
 		~TSequenceMap() {
 			if (auto* parent = std::exchange(m_parent, nullptr))
@@ -100,8 +97,8 @@ namespace gtl::seq::inline v01 {
 			if (auto iter = m_mapFuncs.find(id); iter != m_mapFuncs.end())
 				m_mapFuncs.erase(iter);
 		}
-		template < typename tSelf, typename self_handler_t = std::function<xSequence(tSelf* self, std::shared_ptr<typename base_t::sParam>)> >
-		inline void Bind(seq_id_t const& id, tSelf* self, self_handler_t handler) {
+		template < typename tSelf >
+		inline void Bind(seq_id_t const& id, tSelf* self, seq_t(tSelf::* handler)(param_t) ) {
 			Bind(id, std::bind(handler, self, std::placeholders::_1));
 		}
 
@@ -140,30 +137,22 @@ namespace gtl::seq::inline v01 {
 		}
 	#endif
 		//-----------------------------------
-		template < typename tSelf, typename self_handler_t = std::function<xSequence(tSelf* self, std::shared_ptr<sParam>)> >
+		template < typename tSelf >
 			requires std::is_base_of_v<this_t, tSelf>
-		inline xSequence& CreateSequence(xSequence* parent, seq_id_t name, seq_id_t running, tSelf* self, self_handler_t handler, std::shared_ptr<sParam> params = std::make_shared<sParam>()) {
+		inline auto CreateSequence(seq_t* parent, seq_id_t running, tSelf* self, seq_t(tSelf::*handler)(param_t), param_t params = {}) {
+			if (!handler)
+				throw std::exception("no handler");
 			if (!parent)
 				parent = ((this_t*)self)->m_sequence_driver->GetCurrentSequence();
 			if (!parent)
 				parent = ((this_t*)self)->m_sequence_driver;
 			if (!parent)
 				throw std::exception("no parent seq");
-			if (handler) {
-				return parent->CreateChildSequence<std::shared_ptr<sParam>>(
-					running.empty() ? std::move(name) : std::move(running),
-					std::bind(handler, self, std::placeholders::_1), std::move(params));
-			}
-			else {
-				auto func = self->FindHandler(name);
-				if (!func)
-					throw std::exception("no handler");
-				return parent->CreateChildSequence<std::shared_ptr<sParam>>(
-					running.empty() ? std::move(name) : std::move(running), func, std::move(params));
-			}
+			return parent->CreateChildSequence<param_t>(
+				std::move(running), std::bind(handler, self, std::placeholders::_1), std::move(params));
 		}
 		//-----------------------------------
-		inline xSequence& CreateSequence(xSequence* parent, unit_id_t unit, seq_id_t name, seq_id_t running, std::shared_ptr<sParam> params = std::make_shared<sParam>()) {
+		inline auto CreateSequence(seq_t* parent, unit_id_t unit, seq_id_t name, seq_id_t running, param_t params = {}) {
 			this_t* unitTarget = unit.empty() ? this : m_top->FindUnitDFS(unit);
 			if (!unitTarget)
 				throw std::exception("no unit");
@@ -176,38 +165,38 @@ namespace gtl::seq::inline v01 {
 			auto func = unitTarget->FindHandler(name);
 			if (!func)
 				throw std::exception("no handler");
-			return parent->CreateChildSequence<std::shared_ptr<sParam>>(
+			return parent->CreateChildSequence<param_t>(
 				running.empty() ? std::move(name) : std::move(running), func, std::move(params));
 		}
 
 		// root sequence
-		inline xSequence& CreateRootSequence(unit_id_t const& unit, seq_id_t name, std::shared_ptr<sParam> params = std::make_shared<sParam>()) {
+		inline auto CreateRootSequence(unit_id_t const& unit, seq_id_t name, param_t params) {
 			return CreateSequence(m_sequence_driver, unit, std::move(name), {}, std::move(params));
 		}
-		inline xSequence& CreateRootSequence(seq_id_t name, std::shared_ptr<sParam> params = std::make_shared<sParam>()) {
+		inline auto CreateRootSequence(seq_id_t name, param_t params = {}) {
 			return CreateSequence(m_sequence_driver, {}, std::move(name), {}, std::move(params));
 		}
 
 		// child sequence
-		inline xSequence& CreateChildSequence(xSequence* parent, unit_id_t const& unit, seq_id_t name, std::shared_ptr<sParam> params = std::make_shared<sParam>()) {
+		inline auto CreateChildSequence(seq_t* parent, unit_id_t const& unit, seq_id_t name, param_t params) {
 			return CreateSequence(parent, unit, std::move(name), {}, std::move(params));
 		}
-		inline xSequence& CreateChildSequence(seq_id_t name, std::shared_ptr<sParam> params = std::make_shared<sParam>()) {
+		inline auto CreateChildSequence(seq_id_t name, param_t params = {}) {
 			if (auto* parent = m_sequence_driver->GetCurrentSequence())
 				return CreateSequence(parent, {}, std::move(name), {}, std::move(params));
 			throw std::exception("CreateChildSequence() must be called from sequence function");
 		}
-		inline xSequence& CreateChildSequence(unit_id_t const& unit, seq_id_t name, std::shared_ptr<sParam> params = std::make_shared<sParam>()) {
+		inline auto CreateChildSequence(unit_id_t const& unit, seq_id_t name, param_t params) {
 			if (auto* parent = m_sequence_driver->GetCurrentSequence())
 				return CreateSequence(parent, unit, std::move(name), {}, std::move(params));
 			throw std::exception("CreateChildSequence() must be called from sequence function");
 		}
 
 		// broadcast sequence
-		size_t BroadcastSequence(xSequence& parent, seq_id_t name, std::shared_ptr<sParam> params = std::make_shared<sParam>()) {
+		size_t BroadcastSequence(seq_t& parent, seq_id_t name, param_t params = {}) {
 			size_t count{};
 			if (auto handler = FindHandler(name)) {
-				parent.CreateChildSequence<std::shared_ptr<sParam>>(name, handler, std::move(params));
+				parent.CreateChildSequence<std::shared_ptr<param_t>>(name, handler, std::move(params));
 				count++;
 			}
 			for (auto* child : m_mapChildren) {
