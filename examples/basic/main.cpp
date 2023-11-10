@@ -8,6 +8,8 @@
 #include <fmt/xchar.h>
 #include <fmt/chrono.h>
 
+//#include <ctre.hpp>
+
 #include "gtl/sequence.h"
 #include "gtl/sequence_map.h"
 
@@ -40,7 +42,7 @@ seq_t Sequence1() {
 	auto t2 = chrono::steady_clock::now();
 	fmt::print("step3 : {:>8}\n", chrono::duration_cast<chrono::milliseconds>(t2 - t1));
 
-	co_return "";
+	co_return fmt::format("{} ended. take {}", self->GetName(), chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - t0));
 }
 
 seq_t TopSeq();
@@ -153,7 +155,7 @@ int main() {
 	fmt::print("Begin\n");
 
 	// start simple sequence
-	driver.CreateChildSequence("-------------\nSimpleSequence", &Sequence1);
+	auto future = driver.CreateChildSequence("SimpleSequence", &Sequence1);
 	do {
 		auto t = driver.Dispatch();
 		if (driver.IsDone())
@@ -162,11 +164,12 @@ int main() {
 			t = gtl::seq::clock_t::now() + 3s;
 		std::this_thread::sleep_until(t);
 	} while (!driver.IsDone());
+	fmt::print("Sequence1 result : {}\n", future.get());
 
 	fmt::print("\n");
 
 	// start tree sequence
-	driver.CreateChildSequence("-------------\nTreeSequence", &TopSeq);
+	driver.CreateChildSequence("TreeSequence", &TopSeq);
 	do {
 		auto t = driver.Dispatch();
 		if (driver.IsDone())

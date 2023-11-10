@@ -48,8 +48,8 @@ public:
 	using base_t = seq_map_t;
 
 	C1(unit_id_t const& id, seq_map_t& parent) : seq_map_t(id, parent) {
-		Bind("task1", this, &this_t::Task1);
-		Bind("task2", this, &this_t::Task2);
+		Bind("task1", &this_t::Task1);
+		Bind("task2", &this_t::Task2);
 	}
 
 protected:
@@ -96,8 +96,8 @@ public:
 	using base_t = seq_map_t;
 
 	C2(unit_id_t const& id, seq_map_t& parent) : seq_map_t(id, parent) {
-		Bind("taskA", this, &this_t::TaskA);
-		Bind("taskB", this, &this_t::TaskB);
+		Bind("taskA", &this_t::TaskA);
+		Bind("taskB", &this_t::TaskB);
 	}
 
 protected:

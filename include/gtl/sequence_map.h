@@ -90,18 +90,26 @@ namespace gtl::seq::inline v01 {
 
 		//-----------------------------------
 		/// @brief Bind/Unbind sequence function with name
-		inline void Bind(seq_id_t const& id, handler_t handler) {
-			m_mapFuncs[id] = handler;
-		}
-		inline void Unbind(seq_id_t const& id) {
+		inline bool Bind(seq_id_t const& id, handler_t handler) {
 			if (auto iter = m_mapFuncs.find(id); iter != m_mapFuncs.end())
-				m_mapFuncs.erase(iter);
+				return false;
+			m_mapFuncs[id] = handler;
+			return true;
 		}
-		template < typename tSelf >
-		inline void Bind(seq_id_t const& id, tSelf* self, seq_t(tSelf::* handler)(param_t) ) {
-			Bind(id, std::bind(handler, self, std::placeholders::_1));
+		inline bool Unbind(seq_id_t const& id) {
+			if (auto iter = m_mapFuncs.find(id); iter != m_mapFuncs.end()) {
+				m_mapFuncs.erase(iter);
+				return true;
+			}
+			return false;
+		}
+	protected:
+		template < typename tSelf > requires std::is_base_of_v<this_t, tSelf>
+		inline bool Bind(seq_id_t const& id, seq_t(tSelf::* handler)(param_t) ) {
+			return Bind(id, std::bind(handler, (tSelf*)(this), std::placeholders::_1));
 		}
 
+	public:
 		//-----------------------------------
 		// Find Handler
 		inline handler_t FindHandler(seq_id_t const& sequence) const {
