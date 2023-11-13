@@ -23,12 +23,13 @@ namespace gtl::seq::inline v01 {
 		using result_t = tResult;
 		using param_t = tParam;
 		using seq_t = TSequence<result_t>;
+		using coro_t = seq_t::sCoroutineHandle;
 
 		using unit_id_t = std::string;
 
 	public:
 		using this_t = TSequenceMap;
-		using handler_t = std::function<seq_t(param_t)>;
+		using handler_t = std::function<coro_t(seq_t&, param_t&&)>;
 		using map_t = std::map<seq_id_t, handler_t>;
 
 	private:
@@ -106,8 +107,8 @@ namespace gtl::seq::inline v01 {
 		}
 	protected:
 		template < typename tSelf > requires std::is_base_of_v<this_t, tSelf>
-		inline bool Bind(seq_id_t const& id, seq_t(tSelf::* handler)(param_t) ) {
-			return Bind(id, std::bind(handler, (tSelf*)(this), std::placeholders::_1));
+		inline bool Bind(seq_id_t const& id, coro_t(tSelf::* handler)(seq_t&, param_t) ) {
+			return Bind(id, std::bind(handler, (tSelf*)(this), std::placeholders::_1, std::placeholders::_2));
 		}
 
 	public:
@@ -148,7 +149,7 @@ namespace gtl::seq::inline v01 {
 		//-----------------------------------
 		template < typename tSelf >
 			requires std::is_base_of_v<this_t, tSelf>
-		inline auto CreateSequence(seq_t* parent, seq_id_t running, tSelf* self, seq_t(tSelf::*handler)(param_t), param_t params = {}) {
+		inline auto CreateSequence(seq_t* parent, seq_id_t running, tSelf* self, coro_t(tSelf::*handler)(seq_t&, param_t), param_t params = {}) {
 			if (!handler)
 				throw std::exception("no handler");
 			if (!parent)
@@ -158,7 +159,7 @@ namespace gtl::seq::inline v01 {
 			if (!parent)
 				throw std::exception("no parent seq");
 			return parent->CreateChildSequence<param_t>(
-				std::move(running), std::bind(handler, self, std::placeholders::_1), std::move(params));
+				std::move(running), std::bind(handler, self, std::placeholders::_1, std::placeholders::_2), std::move(params));
 		}
 		//-----------------------------------
 		inline auto CreateSequence(seq_t* parent, unit_id_t unit, seq_id_t name, seq_id_t running, param_t params = {}) {

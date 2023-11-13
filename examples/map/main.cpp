@@ -54,7 +54,7 @@ public:
 
 protected:
 
-	seq_t Task1(param_t param) {
+	coro_t Task1(seq_t& seq, param_t param) {
 		auto t0 = gtl::seq::clock_t::now();
 		auto funcname = "C1::Task1"; //std::source_location::current().function_name();
 
@@ -69,7 +69,7 @@ protected:
 
 		co_return "";
 	}
-	seq_t Task2(param_t param) {
+	coro_t Task2(seq_t& seq, param_t param) {
 		auto t0 = gtl::seq::clock_t::now();
 		auto funcname = "C1::Task2"; //std::source_location::current().function_name();
 
@@ -101,7 +101,7 @@ public:
 	}
 
 protected:
-	seq_t TaskA(param_t param) {
+	coro_t TaskA(seq_t& seq, param_t param) {
 		auto t0 = gtl::seq::clock_t::now();
 		auto funcname = "C2::TaskA"; //std::source_location::current().function_name();
 
@@ -117,7 +117,7 @@ protected:
 
 		co_return std::move(str);
 	}
-	seq_t TaskB(param_t param) {
+	coro_t TaskB(seq_t& seq, param_t param) {
 		auto t0 = gtl::seq::clock_t::now();
 		auto funcname = "C2::TaskB"; //std::source_location::current().function_name();
 

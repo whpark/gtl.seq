@@ -53,20 +53,31 @@ namespace gtl::seq::inline v01 {
 	//-------------------------------------------------------------------------
 	/// @brief sequence dispatcher
 	template < typename tResult = bool >
-	struct TSequence {
+	class TSequence {
 	public:
 		using this_t = TSequence;
 		using result_t = tResult;
 		struct promise_type;
-		using coroutine_handle_t = std::coroutine_handle<promise_type>;
+		struct sCoroutineHandle : public std::coroutine_handle<promise_type> {
+			using promise_type = promise_type;
+			using this_t = sCoroutineHandle;
+			using base_t = std::coroutine_handle<promise_type>;
+			sCoroutineHandle(std::coroutine_handle<promise_type>&& h) : base_t(std::move(h)) { h = nullptr; }
+			sCoroutineHandle(sCoroutineHandle const&) = delete;
+			sCoroutineHandle(sCoroutineHandle&& b) : base_t(std::move(b)) { ((base_t&)b) = nullptr; }
+			sCoroutineHandle& operator = (sCoroutineHandle const&) = delete;
+			sCoroutineHandle& operator = (sCoroutineHandle&& b) { ((base_t&)*this) = std::move(b); ((base_t&)b) = nullptr; return *this; }
+			using base_t::base_t;
+		};
+		using coro_t = sCoroutineHandle;
 		//-------------------------------------------------------------------------
 		/// @brief 
 		struct promise_type {
 			std::promise<result_t> m_result;
 			std::exception_ptr m_exception;
 
-			coroutine_handle_t get_return_object() {
-				return coroutine_handle_t::from_promise(*this);
+			sCoroutineHandle get_return_object() {
+				return { sCoroutineHandle::from_promise(*this)};
 			}
 			std::suspend_always initial_suspend() { return {}; }
 			std::suspend_always final_suspend() noexcept { return {}; }
@@ -91,7 +102,7 @@ namespace gtl::seq::inline v01 {
 
 	protected:
 		this_t* m_parent{};
-		coroutine_handle_t m_handle;
+		sCoroutineHandle m_handle;
 		inline thread_local static this_t* s_seqCurrent{};
 		std::thread::id m_threadID{std::this_thread::get_id()};	// NOT const. may be created from other thread (injection)
 		seq_id_t m_name;
@@ -104,8 +115,7 @@ namespace gtl::seq::inline v01 {
 
 	public:
 		// constructor
-		explicit TSequence(seq_id_t name = "") : m_name(std::move(name)) {}
-		TSequence(coroutine_handle_t&& h) : m_handle(std::exchange(h, nullptr)) { }
+		explicit TSequence(seq_id_t name = "") : m_name(std::move(name)), m_handle(nullptr) {}
 		TSequence(TSequence const&) = delete;
 		TSequence& operator = (TSequence const&) = delete;
 		TSequence(TSequence&& b) {
@@ -122,13 +132,6 @@ namespace gtl::seq::inline v01 {
 			//m_timeout = std::exchange(b.m_timeout, {});
 			m_state = std::exchange(b.m_state, {});
 			m_children.swap(b.m_children);
-			return *this;
-		}
-		TSequence& operator = (coroutine_handle_t&& h) {
-			if (m_handle != nullptr) {
-				throw std::exception("TSequence::operator = (coroutine_handle_t&&) : already has handle");
-			}
-			m_handle = std::exchange(h, nullptr);
 			return *this;
 		}
 		void SetName(seq_id_t name) {
@@ -239,8 +242,8 @@ namespace gtl::seq::inline v01 {
 		/// @param func coroutine function
 		/// @param ...args for coroutine function. must be moved or copied.
 		/// @return 
-		template < typename ... targs >
-		std::future<result_t> CreateChildSequence(seq_id_t name, std::function<this_t(targs ...)> func, targs... args) {
+		template < typename ... tArgs >
+		std::future<result_t> CreateChildSequence(seq_id_t name, std::function<sCoroutineHandle(this_t&, tArgs&& ...)> func, tArgs&&... args) {
 			if constexpr (false) {	// todo: do I need this?
 				if (std::this_thread::get_id() != m_threadID) {
 					throw std::exception("CreateChildSequence() must be called from the same thread as the driver");
@@ -253,15 +256,19 @@ namespace gtl::seq::inline v01 {
 				lock.emplace(m_mtxChildren);
 
 			// create child sequence
-			m_children.emplace_back(func(std::move(args)...));	// coroutine parameters are to be moved (or copied)
-			auto& self = m_children.back();
-			self.m_parent = this;
-			self.m_threadID = m_threadID;
-			self.m_name = std::move(name);
-			return self.m_handle.promise().m_result.get_future();
+			m_children.emplace_back(std::move(name));
+			auto& seq = m_children.back();
+			// coroutine. coroutine parameters are to be moved (or copied)
+			seq.m_handle = func(seq, std::forward<tArgs>(args)...);
+			auto future = seq.m_handle.promise().m_result.get_future();
+			seq.m_parent = this;
+			seq.m_threadID = m_threadID;
+			return std::move(future);
 		}
-		inline auto CreateChildSequence(seq_id_t name, std::function<this_t()> func) {
-			return CreateChildSequence<>(std::move(name), func);
+		template < typename ... tArgs >
+		std::future<result_t> CreateChildSequence(seq_id_t name, sCoroutineHandle(*func)(this_t&, tArgs&& ...), tArgs&&... args) {
+			std::function<coro_t(this_t&, tArgs&& ...)> f = func;
+			return CreateChildSequence(std::move(name), std::move(f), std::forward<tArgs>(args)...);
 		}
 
 		/// @brief Find Child Sequence (Direct Child Only)
@@ -384,7 +391,6 @@ namespace gtl::seq::inline v01 {
 					tNextDispatchChild = clock_t::time_point::max();	// suspend (do preset for there is no child sequence)
 					std::scoped_lock lock{m_mtxChildren};
 					for (auto iter = m_children.begin(); iter != m_children.end();) {
-						//tNextDispatchChild = clock_t::time_point::max();	// suspend
 						auto& child = *iter;
 
 						// Check Time
@@ -395,12 +401,12 @@ namespace gtl::seq::inline v01 {
 						}
 
 						// Dispatch Child
-						if (child.Dispatch(tNextDispatchChild)) {	// no more child or child done
+						if (child.Dispatch(tNextDispatchChild)) {
 							iter++;
 						}
 						else {
+							// no more child or child done
 							iter = m_children.erase(iter);
-							continue;
 						}
 					}
 					if (m_state.tNextDispatchChild > t0)
