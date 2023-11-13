@@ -11,10 +11,11 @@
 //#include <ctre.hpp>
 
 #include "gtl/sequence.h"
+#include "gtl/sequence_any.h"
 #include "gtl/sequence_map.h"
 
 using seq_t = gtl::seq::TSequence<std::string>;
-using coro_t = seq_t::sCoroutineHandle;
+using coro_t = seq_t::coro_t;
 using seq_map_t = gtl::seq::TSequenceMap<seq_t::result_t>;
 
 using namespace std::literals;
@@ -55,7 +56,7 @@ coro_t Child2(seq_t&);
 coro_t TopSeq(seq_t& seq) {
 
 	auto sl = std::source_location::current();
-	auto funcname = sl.function_name();
+	auto funcname = seq.GetName();// sl.function_name();
 
 	// step 1
 	fmt::print("{}: Begin\n", funcname);
@@ -81,7 +82,7 @@ coro_t TopSeq(seq_t& seq) {
 
 coro_t Child1(seq_t& seq) {
 	auto sl = std::source_location::current();
-	auto funcname = sl.function_name();
+	auto funcname = seq.GetName();// sl.function_name();
 
 	// step 1
 	fmt::print("{}: Begin\n", funcname);
@@ -104,7 +105,7 @@ coro_t Child1(seq_t& seq) {
 coro_t Child1_1(seq_t& seq) {
 
 	auto sl = std::source_location::current();
-	auto funcname = sl.function_name();
+	auto funcname = seq.GetName();// sl.function_name();
 
 	auto t0 = gtl::seq::clock_t::now();
 
@@ -122,7 +123,7 @@ coro_t Child1_1(seq_t& seq) {
 
 coro_t Child1_2(seq_t& seq) {
 	auto sl = std::source_location::current();
-	auto funcname = sl.function_name();
+	auto funcname = seq.GetName();// sl.function_name();
 
 	auto t0 = gtl::seq::clock_t::now();
 
@@ -142,29 +143,18 @@ coro_t Child2(seq_t& seq) {
 	co_return "";
 }
 
-gtl::seq::v01::xSequence::TCoroutineHandle<std::string> SeqV2(gtl::seq::v01::xSequence& seq) {
-	using seq_t = gtl::seq::v01::xSequence;
-	namespace chrono = std::chrono;
+gtl::seq::v01::TCoroutineHandle<std::string> SeqReturningString(gtl::seq::v01::xSequenceAny& seq) {
 	auto t0 = chrono::steady_clock::now();
-
-	// do print something
-	fmt::print("step1\n");
-
-	// Wait For 1s
-	co_await seq.WaitFor(30ms);
-
-	// do print something
-	auto t1 = chrono::steady_clock::now();
-	fmt::print("step2 : {:>8}\n", chrono::duration_cast<chrono::milliseconds>(t1 - t0));
-
-	co_await seq.WaitUntil(gtl::seq::clock_t::now() + 1ms);
-
-	auto t2 = chrono::steady_clock::now();
-	fmt::print("step3 : {:>8}\n", chrono::duration_cast<chrono::milliseconds>(t2 - t1));
-
 	auto str = fmt::format("{} ended. take {}", seq.GetName(), chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - t0));
-	co_return str;
+
+	co_return std::move(str);
 }
+
+gtl::seq::v01::TCoroutineHandle<int> SeqReturningInt(gtl::seq::v01::xSequenceAny& seq) {
+
+	co_return 3141592;
+}
+
 
 int main() {
 
@@ -203,9 +193,12 @@ int main() {
 
 
 	if constexpr (true) {
-		gtl::seq::v01::xSequence driver;
+		gtl::seq::v01::xSequenceAny driver;
 
-		auto f = driver.CreateChildSequence("SeqV2", &SeqV2);
+		fmt::print("Creating 2 sequences returning string and int respectively\n");
+
+		auto f1 = driver.CreateChildSequence("SeqReturningString", &SeqReturningString);
+		auto f2 = driver.CreateChildSequence("SeqReturningInt", &SeqReturningInt);
 
 		do {
 			auto t = driver.Dispatch();
@@ -216,7 +209,8 @@ int main() {
 			std::this_thread::sleep_until(t);
 		} while (!driver.IsDone());
 
-		fmt::print("Result of SeqV2 : {}\n", f.get());
+		fmt::print("Result of SeqReturningString : {}\n", f1.get());
+		fmt::print("Result of SeqReturningInt : {}\n", f2.get());
 
 		fmt::print("End\n");
 	}

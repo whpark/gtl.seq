@@ -23,7 +23,7 @@ namespace gtl::seq::inline v01 {
 		using result_t = tResult;
 		using param_t = tParam;
 		using seq_t = TSequence<result_t>;
-		using coro_t = seq_t::sCoroutineHandle;
+		using coro_t = seq_t::coro_t;
 
 		using unit_id_t = std::string;
 

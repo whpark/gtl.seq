@@ -1,11 +1,11 @@
-﻿#pragma once
+#pragma once
 
 //////////////////////////////////////////////////////////////////////
 //
-// sequence.h: Sequence Loop (using co-routine) (Mocha::MIP like ...)
+// sequence_any.h: xSequenceAny - coroutines having templatized return type
 //
 // PWH
-// 2023-10-27
+// 2023-11-13
 //
 //////////////////////////////////////////////////////////////////////
 
@@ -29,16 +29,15 @@ namespace gtl::seq::inline v01 {
 
 	//-------------------------------------------------------------------------
 	/// @brief sequence dispatcher
-	template < typename tResult = bool >
-	class TSequence {
+	class xSequenceAny {
 	public:
-		using this_t = TSequence;
-		using result_t = tResult;
-		using coro_t = TSimpleCoroutineHandle<tResult>;
+		using this_t = xSequenceAny;
+		template < typename tResult >
+		using tcoro_t = TCoroutineHandle<tResult>;
 
 	protected:
 		this_t* m_parent{};
-		coro_t m_handle;
+		std::unique_ptr<ICoroutineHandle> m_handle;
 		inline thread_local static this_t* s_seqCurrent{};
 		std::thread::id m_threadID{std::this_thread::get_id()};	// NOT const. may be created from other thread (injection)
 		seq_id_t m_name;
@@ -51,17 +50,17 @@ namespace gtl::seq::inline v01 {
 
 	public:
 		// constructor
-		explicit TSequence(seq_id_t name = "") : m_name(std::move(name)), m_handle(nullptr) {}
-		TSequence(TSequence const&) = delete;
-		TSequence& operator = (TSequence const&) = delete;
-		TSequence(TSequence&& b) {
+		explicit xSequenceAny(seq_id_t name = "") : m_name(std::move(name)) {}
+		xSequenceAny(xSequenceAny const&) = delete;
+		xSequenceAny& operator = (xSequenceAny const&) = delete;
+		xSequenceAny(xSequenceAny&& b) {
 			m_name.swap(b.m_name);
 			m_handle = std::exchange(b.m_handle, nullptr);
 			//m_timeout = std::exchange(b.m_timeout, {});
 			m_state = std::exchange(b.m_state, {});
 			m_children.swap(b.m_children);
 		}
-		TSequence& operator = (TSequence&& b) {
+		xSequenceAny& operator = (xSequenceAny&& b) {
 			Destroy();
 			m_name.swap(b.m_name);
 			m_handle = std::exchange(b.m_handle, nullptr);
@@ -78,20 +77,20 @@ namespace gtl::seq::inline v01 {
 		}
 
 		// destructor
-		~TSequence() {
+		~xSequenceAny() {
 			Destroy();
 		}
 		inline void Destroy() {
 			m_name.clear();
-			if (auto h = std::exchange(m_handle, nullptr); h) {
-				h.Destroy();
+			if (auto h = std::exchange(m_handle, nullptr); h and h->Valid()) {
+				h->Destroy();
 			}
 		}
 
 		/// @brief 
 		/// @return 
 		inline bool IsDone() const {
-			return m_children.empty() and (!m_handle or m_handle.Done());
+			return m_children.empty() and (!m_handle or m_handle->Done());
 		}
 
 		/// @brief 
@@ -117,7 +116,7 @@ namespace gtl::seq::inline v01 {
 				if (m_children.size())
 					t = std::min(t, m_state.tNextDispatchChild);
 			}
-			if (m_children.empty() and m_handle and !m_handle.Done())
+			if (m_children.empty() and m_handle and m_handle->Valid() and !m_handle->Done())
 				t = std::min(t, m_state.tNextDispatch);
 			return t;
 		}
@@ -130,7 +129,7 @@ namespace gtl::seq::inline v01 {
 				t = std::min(t, child.UpdateNextDispatchTime());
 			}
 			m_state.tNextDispatchChild = t;
-			if (m_children.empty() and m_handle and !m_handle.Done())
+			if (m_children.empty() and m_handle and m_handle->Valid() and !m_handle->Done())
 				t = std::min(t, m_state.tNextDispatch);
 			return t;
 		}
@@ -160,7 +159,7 @@ namespace gtl::seq::inline v01 {
 
 		/// @brief reserves next dispatch time. NOT dispatch, NOT reserve dispatch itself.
 		bool ReserveResume(clock_t::time_point tWhen = {}) {
-			if (!m_handle or m_handle.Done())
+			if (!m_handle or !m_handle->Valid() or m_handle->Done())
 				return false;
 			m_state.tNextDispatch = tWhen;
 
@@ -178,8 +177,8 @@ namespace gtl::seq::inline v01 {
 		/// @param func coroutine function
 		/// @param ...args for coroutine function. must be moved or copied.
 		/// @return 
-		template < typename ... tArgs >
-		std::future<result_t> CreateChildSequence(seq_id_t name, std::function<coro_t(this_t&, tArgs&& ...)> func, tArgs&&... args) {
+		template < typename tResult, typename ... tArgs >
+		std::future<tResult> CreateChildSequence(seq_id_t name, std::function<tcoro_t<tResult>(this_t&, tArgs&& ...)> func, tArgs&& ... args) {
 			if constexpr (false) {	// todo: do I need this?
 				if (std::this_thread::get_id() != m_threadID) {
 					throw std::exception("CreateChildSequence() must be called from the same thread as the driver");
@@ -195,15 +194,16 @@ namespace gtl::seq::inline v01 {
 			m_children.emplace_back(std::move(name));
 			auto& seq = m_children.back();
 			// coroutine. coroutine parameters are to be moved (or copied)
-			seq.m_handle = func(seq, std::forward<tArgs>(args)...);
-			auto future = seq.m_handle.promise().m_result.get_future();
+			auto handle = std::make_unique<tcoro_t<tResult>>(func(seq, std::forward(args)...));
+			auto future = handle->promise().m_result.get_future();
+			seq.m_handle = std::move(handle);
 			seq.m_parent = this;
 			seq.m_threadID = m_threadID;
 			return std::move(future);
 		}
-		template < typename ... tArgs >
-		auto CreateChildSequence(seq_id_t name, coro_t(*func)(this_t&, tArgs&& ...), tArgs&&... args) {
-			std::function<coro_t(this_t&, tArgs&& ...)> f = func;
+		template < typename tResult, typename ... tArgs >
+		auto CreateChildSequence(seq_id_t name, TCoroutineHandle<tResult>(*func)(this_t&, tArgs&& ...), tArgs&& ... args) {
+			std::function<tcoro_t<tResult>(this_t&, tArgs&& ...)> f = func;
 			return CreateChildSequence(std::move(name), std::move(f), std::forward<tArgs>(args)...);
 		}
 
@@ -350,20 +350,20 @@ namespace gtl::seq::inline v01 {
 				} while (m_children.size());
 
 				// if no more child sequence, Dispatch Self
-				if (m_children.empty() and m_handle and !m_handle.Done()) {
+				if (m_children.empty() and m_handle and m_handle->Valid() and !m_handle->Done()) {
 					m_state.tNextDispatch = clock_t::time_point::max();
 					//m_handle.promise().m_result.reset();
 
 					// Dispatch
 					s_seqCurrent = this;
-					m_handle.Resume();
+					m_handle->Resume();
 					s_seqCurrent = nullptr;
 
 					//if (auto& promise = m_handle.promise(); promise.m_result) {
 					//	m_result.set_value(std::move(*promise.m_result));
 					//}
 					bContinue = !m_children.empty();	// if new child sequence added, continue to dispatch child
-					if (auto e = m_handle.Exception()) {
+					if (auto e = m_handle->Exception()) {
 						std::rethrow_exception(e);
 					}
 				}
@@ -372,7 +372,7 @@ namespace gtl::seq::inline v01 {
 			return !IsDone();
 		}
 
-	};	// TSequence
+	};	// xSequenceAny
 
 
 };
