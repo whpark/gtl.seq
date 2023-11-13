@@ -74,7 +74,8 @@ namespace gtl::seq::inline v01 {
 
 		auto GetSequenceDriver() const { return m_sequence_driver; }
 		auto const& GetUnitName() const { return m_unit; }
-
+		auto* GetCurrentSequence() { return m_sequence_driver->GetCurrentSequence(); }
+		auto const* GetCurrentSequence() const { return m_sequence_driver->GetCurrentSequence(); }
 		//-----------------------------------
 		/// @brief Register/Unregister this unit
 		inline void Register(this_t* child) {
