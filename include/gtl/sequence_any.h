@@ -11,17 +11,16 @@
 
 #include <coroutine>
 #include <future>
-#include <vector>
-#include <concepts>
 #include <list>
 #include <functional>
 #include <optional>
-#include <format>
 #include <chrono>
 #include <mutex>
 #include <thread>
-#include <set>
-#include <map>
+#include <exception>
+#include <memory>
+#include <type_traits>
+#include <utility>
 
 #include "sequence_coroutine_handle.h"
 

@@ -11,17 +11,10 @@
 
 #include <coroutine>
 #include <future>
-#include <vector>
-#include <concepts>
-#include <list>
-#include <functional>
-#include <optional>
-#include <format>
 #include <chrono>
-#include <mutex>
-#include <thread>
-#include <set>
-#include <map>
+#include <exception>
+#include <string>
+#include <utility>
 
 namespace gtl::seq::inline v01 {
 

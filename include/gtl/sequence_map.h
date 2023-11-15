@@ -49,6 +49,9 @@ namespace gtl::seq::inline v01 {
 		TSequenceMap(unit_id_t unit, seq_t& driver) : m_unit(std::move(unit)), m_sequence_driver(&driver), m_top(this) {
 		}
 		~TSequenceMap() {
+			for (auto& child : m_mapChildren)	// children can outlive parents
+				child->m_parent = nullptr;
+			m_mapChildren.clear();
 			if (auto* parent = std::exchange(m_parent, nullptr))
 				parent->Unregister(this);
 		}
