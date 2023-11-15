@@ -2,7 +2,7 @@
 
 //////////////////////////////////////////////////////////////////////
 //
-// coroutine_handle.h: coroutine handle
+// sequence_coroutine_handle.h: coroutine handle
 //
 // PWH
 // 2023-11-13. moved from sequence.h
@@ -40,10 +40,12 @@ namespace gtl::seq::inline v01 {
 	//-------------------------------------------------------------------------
 	/// @brief used for scheduling
 	struct sState {
+	public:
 		clock_t::time_point tNextDispatch{};
 		mutable clock_t::time_point tNextDispatchChild{ clock_t::time_point::max() };	// cache
 		//bool bDone{false};
 
+	public:
 		sState(clock_t::time_point t = clock_t::now()) : tNextDispatch(t) {}
 		sState(clock_t::duration d) {
 			tNextDispatch = (d.count() == 0) ? clock_t::time_point{} : clock_t::now() + d;
@@ -59,22 +61,32 @@ namespace gtl::seq::inline v01 {
 	};
 
 	//-------------------------------------------------------------------------
+	template < typename tResult >
+	class TSimpleCoroutineHandle;
+	class ICoroutineHandle;
+	template < typename tResult >
+	class TCoroutineHandle;
 	template < typename tResult, template < typename tResult > typename tCoroutineHandle >
 	struct TPromise;
 
 	//-------------------------------------------------------------------------
 	/// @brief simple coroutine handle
 	template < typename tResult >
-	struct TSimpleCoroutineHandle : protected std::coroutine_handle<TPromise<tResult, TSimpleCoroutineHandle>> {
+	class TSimpleCoroutineHandle : protected std::coroutine_handle<TPromise<tResult, TSimpleCoroutineHandle>> {
+	public:
 		using promise_type = TPromise<tResult, TSimpleCoroutineHandle>;
 		using this_t = TSimpleCoroutineHandle;
 		using base_t = std::coroutine_handle<promise_type>;
+
+	public:
 		TSimpleCoroutineHandle(std::coroutine_handle<promise_type>&& h) : base_t(std::move(h)) { h = nullptr; }
 		TSimpleCoroutineHandle(TSimpleCoroutineHandle const&) = delete;
 		TSimpleCoroutineHandle(TSimpleCoroutineHandle&& b) : base_t(std::move(b)) { ((base_t&)b) = nullptr; }
 		TSimpleCoroutineHandle& operator = (TSimpleCoroutineHandle const&) = delete;
 		TSimpleCoroutineHandle& operator = (TSimpleCoroutineHandle&& b) { ((base_t&)*this) = std::move(b); ((base_t&)b) = nullptr; return *this; }
 		using base_t::base_t;
+
+	public:
 		using base_t::from_promise;
 		using base_t::promise;
 		using base_t::operator bool;
@@ -104,11 +116,13 @@ namespace gtl::seq::inline v01 {
 	//-------------------------------------------------------------------------
 	/// @brief 
 	template < typename tResult >
-	struct TCoroutineHandle : protected std::coroutine_handle<TPromise<tResult, TCoroutineHandle>>, public ICoroutineHandle {
+	class TCoroutineHandle : protected std::coroutine_handle<TPromise<tResult, TCoroutineHandle>>, public ICoroutineHandle {
 	public:
 		using this_t = TCoroutineHandle;
 		using base_t = std::coroutine_handle<TPromise<tResult, TCoroutineHandle>>;
 		using promise_type = TPromise<tResult, TCoroutineHandle>;
+
+	public:
 		TCoroutineHandle(std::coroutine_handle<promise_type>&& h) : base_t(std::exchange(h, nullptr)) {}
 		TCoroutineHandle(TCoroutineHandle const&) = delete;
 		TCoroutineHandle(TCoroutineHandle&& b) : base_t(std::move(b)) { ((base_t&)b) = nullptr; }
@@ -116,6 +130,8 @@ namespace gtl::seq::inline v01 {
 		TCoroutineHandle& operator = (TCoroutineHandle const&) = delete;
 		TCoroutineHandle& operator = (TCoroutineHandle&& b) { Destroy(); *(base_t*)this = std::move(b);  ((base_t&)b) = nullptr; return *this;  }
 		virtual ~TCoroutineHandle() { Destroy(); }
+
+	public:
 		using base_t::from_promise;
 		using base_t::promise;
 		using base_t::operator bool;
