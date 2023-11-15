@@ -38,6 +38,13 @@ namespace gtl::seq::inline v01 {
 		mutable clock_t::time_point tNextDispatchChild{ clock_t::time_point::max() };	// cache
 		//bool bDone{false};
 
+		struct {
+			std::function<bool()> func;
+			clock_t::time_point t0;
+			clock_t::duration interval, timeout;
+			std::promise<bool> result;
+		} pred;
+
 	public:
 		sState(clock_t::time_point t = clock_t::now()) : tNextDispatch(t) {}
 		sState(clock_t::duration d) {

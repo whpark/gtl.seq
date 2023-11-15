@@ -22,6 +22,17 @@ using namespace std::literals;
 namespace chrono = std::chrono;
 //using namespace gtl::literals;
 
+//std::future<int> asyncAdd(int a, int b) {
+//	return std::async(std::launch::async, [a, b]() {
+//		return a + b;
+//	});
+//}
+//
+//std::future<void> asyncPrint(int value) {
+//	co_await std::chrono::seconds(1);
+//	//std::cout << "Async value: " << value << std::endl;
+//}
+//
 
 coro_t Sequence1(seq_t& seq) {
 
@@ -30,6 +41,23 @@ coro_t Sequence1(seq_t& seq) {
 
 	// do print something
 	fmt::print("step1\n");
+
+	fmt::print("waiting 1 sec, and must be timeout.\n");
+	bool bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
+		auto t = gtl::seq::clock_t::now();
+		fmt::print("wating ... {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(t-t0));
+		return t-t0 > 3s;
+	}, 100ms, 1s);
+	fmt::print("waiting result : {}\n", bOK ? "OK" : "Timeout");
+
+	fmt::print("waiting 1 sec, and may be or may not be timeout.\n");
+	bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
+		auto t = gtl::seq::clock_t::now();
+		fmt::print("wating ... {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(t-t0));
+		return t-t0 > 1s;
+	}, 100ms, 2s);
+	fmt::print("waiting result : {}\n", bOK ? "OK" : "Timeout");
+
 
 	// Wait For 1s
 	co_await seq.WaitFor(40ms);
@@ -158,7 +186,7 @@ gtl::seq::v01::TCoroutineHandle<int> SeqReturningInt(gtl::seq::v01::xSequenceAny
 
 int main() {
 
-	if constexpr (true) {
+	if constexpr (true) try {
 		seq_t driver;
 
 		fmt::print("Begin\n");
@@ -189,6 +217,8 @@ int main() {
 		} while (!driver.IsDone());
 
 		fmt::print("End\n");
+	} catch (std::exception& e) {
+		fmt::print("Exception : {}\n", e.what());
 	}
 
 
