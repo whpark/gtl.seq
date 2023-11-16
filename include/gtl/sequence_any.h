@@ -292,6 +292,22 @@ namespace gtl::seq::inline v01 {
 		}
 
 		// co_await
+		auto Wait(std::function<bool()> pred, clock_t::duration interval, clock_t::duration timeout = clock_t::duration::max()) {
+			m_state.pred.t0 = clock_t::now();
+			m_state.pred.func = std::move(pred);
+			m_state.pred.interval = interval;
+			m_state.pred.timeout = timeout;
+			m_state.pred.result = {};
+			ReserveResume(interval);
+
+			struct sWaitForCondition : public std::suspend_always {
+				mutable std::future<bool> future;
+				bool await_resume() const noexcept { return future.get(); }
+			};
+			return sWaitForCondition{.future = m_state.pred.result.get_future()};
+		}
+
+		// co_await
 		auto WaitFor(clock_t::duration d) {
 			ReserveResume(d);
 			return std::suspend_always{};
@@ -311,6 +327,7 @@ namespace gtl::seq::inline v01 {
 		/// @brief Dispatch.
 		/// @return true if need next dispatch
 		bool Dispatch(clock_t::time_point& tNextDispatchOut) {
+			auto const t0 = clock_t::now();
 
 			if (s_seqCurrent) [[ unlikely ]] {
 				throw std::exception("Dispatch() must NOT be called from Dispatch. !!! No ReEntrance");
@@ -321,7 +338,7 @@ namespace gtl::seq::inline v01 {
 			for (bool bContinue{true}; bContinue;) {
 				bContinue = false;
 				do {
-					auto const t0 = clock_t::now();
+					//auto const t0 = clock_t::now();
 					auto& tNextDispatchChild = m_state.tNextDispatchChild;
 					tNextDispatchChild = clock_t::time_point::max();	// suspend (do preset for there is no child sequence)
 					std::scoped_lock lock{m_mtxChildren};
@@ -355,7 +372,25 @@ namespace gtl::seq::inline v01 {
 
 					// Dispatch
 					s_seqCurrent = this;
-					m_handle->Resume();
+					if (m_state.pred.func) {
+						auto& pred = m_state.pred;
+						if (t0 - pred.t0 > pred.timeout) {
+							pred.func = nullptr;
+							pred.result.set_value(false);
+							m_handle->Resume();
+						}
+						else if (pred.func()) {
+							pred.func = nullptr;
+							pred.result.set_value(true);
+							m_handle->Resume();
+						}
+						else {
+							ReserveResume(t0+m_state.pred.interval);
+						}
+					}
+					else {
+						m_handle->Resume();
+					}
 					s_seqCurrent = nullptr;
 
 					//if (auto& promise = m_handle.promise(); promise.m_result) {

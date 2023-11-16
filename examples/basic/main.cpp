@@ -179,7 +179,11 @@ gtl::seq::v01::TCoroutineHandle<std::string> SeqReturningString(gtl::seq::v01::x
 }
 
 gtl::seq::v01::TCoroutineHandle<int> SeqReturningInt(gtl::seq::v01::xSequenceAny& seq) {
-
+	bool bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
+		auto t = gtl::seq::clock_t::now();
+		fmt::print("SeqReturningInt : {}\n", chrono::duration_cast<chrono::milliseconds>(t - t0));
+		return t - t0 > 1s;
+	}, 100ms, 2s);
 	co_return 3141592;
 }
 
