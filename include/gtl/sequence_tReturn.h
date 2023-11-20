@@ -28,9 +28,9 @@ namespace gtl::seq::inline v01 {
 
 	//-------------------------------------------------------------------------
 	/// @brief sequence dispatcher
-	class xSequenceAny {
+	class xSequenceTReturn {
 	public:
-		using this_t = xSequenceAny;
+		using this_t = xSequenceTReturn;
 		template < typename tResult >
 		using tcoro_t = TCoroutineHandle<tResult>;
 
@@ -49,17 +49,17 @@ namespace gtl::seq::inline v01 {
 
 	public:
 		// constructor
-		explicit xSequenceAny(seq_id_t name = "") : m_name(std::move(name)) {}
-		xSequenceAny(xSequenceAny const&) = delete;
-		xSequenceAny& operator = (xSequenceAny const&) = delete;
-		xSequenceAny(xSequenceAny&& b) {
+		explicit xSequenceTReturn(seq_id_t name = "") : m_name(std::move(name)) {}
+		xSequenceTReturn(xSequenceTReturn const&) = delete;
+		xSequenceTReturn& operator = (xSequenceTReturn const&) = delete;
+		xSequenceTReturn(xSequenceTReturn&& b) {
 			m_name.swap(b.m_name);
 			m_handle = std::exchange(b.m_handle, nullptr);
 			//m_timeout = std::exchange(b.m_timeout, {});
 			m_state = std::exchange(b.m_state, {});
 			m_children.swap(b.m_children);
 		}
-		xSequenceAny& operator = (xSequenceAny&& b) {
+		xSequenceTReturn& operator = (xSequenceTReturn&& b) {
 			Destroy();
 			m_name.swap(b.m_name);
 			m_handle = std::exchange(b.m_handle, nullptr);
@@ -76,7 +76,7 @@ namespace gtl::seq::inline v01 {
 		}
 
 		// destructor
-		~xSequenceAny() {
+		~xSequenceTReturn() {
 			Destroy();
 		}
 		inline void Destroy() {
@@ -406,7 +406,7 @@ namespace gtl::seq::inline v01 {
 			return !IsDone();
 		}
 
-	};	// xSequenceAny
+	};	// xSequenceTReturn
 
 
 };

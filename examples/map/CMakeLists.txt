@@ -1,5 +1,5 @@
 
-add_executable(map main.cpp)
+add_executable(map map.cpp)
 
 # add dependency - fmt
 find_package(fmt CONFIG REQUIRED)

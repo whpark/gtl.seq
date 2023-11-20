@@ -8,8 +8,6 @@
 #include <fmt/xchar.h>
 #include <fmt/chrono.h>
 #include "gtl/sequence.h"
-#include "gtl/sequence_any.h"
-#include "gtl/sequence_map.h"
 
 namespace gtl::seq::test {
 
@@ -19,7 +17,9 @@ namespace gtl::seq::test {
 
 	using seq_t = gtl::seq::TSequence<std::string>;
 	using coro_t = seq_t::coro_t;
-	using seq_map_t = gtl::seq::TSequenceMap<seq_t::result_t>;
+
+	//=================================================================================
+	// Simple Sequence
 
 	coro_t Sequence1(seq_t& seq) {
 		namespace chrono = std::chrono;
@@ -31,41 +31,43 @@ namespace gtl::seq::test {
 		fmt::print("waiting 1 sec, and must be timeout.\n");
 		bool bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
 			auto t = gtl::seq::clock_t::now();
-			fmt::print("wating ... {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(t-t0));
+			fmt::print("waiting ... {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(t-t0));
 			return t-t0 > 3s;
 		}, 100ms, 1s);
 		fmt::print("waiting result : {}\n", bOK ? "OK" : "Timeout");
 
-		fmt::print("waiting 1 sec, and may be or may not be timeout.\n");
+		fmt::print("waiting 1 sec, and will be OK.\n");
 		bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
 			auto t = gtl::seq::clock_t::now();
-			fmt::print("wating ... {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(t-t0));
+			fmt::print("waiting ... {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(t-t0));
 			return t-t0 > 1s;
 		}, 100ms, 2s);
 		fmt::print("waiting result : {}\n", bOK ? "OK" : "Timeout");
 
 
-		// Wait For 1s
+		// Wait For 40ms
 		co_await seq.WaitFor(40ms);
-
 		// do print something
 		auto t1 = chrono::steady_clock::now();
 		fmt::print("step2 : {:>8}\n", chrono::duration_cast<chrono::milliseconds>(t1 - t0));
 
 		co_await seq.WaitUntil(gtl::seq::clock_t::now() + 1ms);
-
 		auto t2 = chrono::steady_clock::now();
 		fmt::print("step3 : {:>8}\n", chrono::duration_cast<chrono::milliseconds>(t2 - t1));
 
-		co_return fmt::format("{} ended. take {}", seq.GetName(), chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - t0));
+		co_return fmt::format("{} ended. take {}",
+			seq.GetName(), chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - t0));
 	}
+
+
+	//=================================================================================
+	// Tree Sequence
 
 	coro_t TopSeq(seq_t&);
 	coro_t Child1(seq_t&);
 	coro_t Child1_1(seq_t&);
 	coro_t Child1_2(seq_t&);
 	coro_t Child2(seq_t&);
-
 
 	coro_t TopSeq(seq_t& seq) {
 		auto sl = std::source_location::current();
@@ -106,10 +108,10 @@ namespace gtl::seq::test {
 
 		co_await seq.WaitForChild();
 
+		// step 2
 		auto t1 = gtl::seq::clock_t::now();
 		fmt::print("{}: Child1_1, Child1_2 Done. {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1 - t0));
 
-		// step 3
 		fmt::print("{}: End\n", funcname);
 	
 		co_return "";
@@ -155,83 +157,54 @@ namespace gtl::seq::test {
 		co_return "";
 	}
 
-	gtl::seq::v01::TCoroutineHandle<std::string> SeqReturningString(gtl::seq::v01::xSequenceAny& seq) {
-		auto t0 = chrono::steady_clock::now();
-		auto str = fmt::format("{} ended. take {}", seq.GetName(), chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - t0));
-
-		co_return std::move(str);
-	}
-
-	gtl::seq::v01::TCoroutineHandle<int> SeqReturningInt(gtl::seq::v01::xSequenceAny& seq) {
-		bool bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
-			auto t = gtl::seq::clock_t::now();
-			fmt::print("SeqReturningInt : {}\n", chrono::duration_cast<chrono::milliseconds>(t - t0));
-			return t - t0 > 1s;
-		}, 100ms, 2s);
-		co_return 3141592;
-	}
-
 }	// namespace gtl::seq::test
 
 int main() {
 	using namespace gtl::seq::test;
+	{
+		try {
+			seq_t driver;
 
-	if constexpr (true) try {
-		seq_t driver;
+			fmt::print("\n\nBegin : Simple\n");
 
-		fmt::print("Begin\n");
+			// start simple sequence
+			std::future<seq_t::result_t> future = driver.CreateChildSequence("SimpleSequence", &Sequence1);
+			do {
+				auto t = driver.Dispatch();
+				if (driver.IsDone())
+					break;
+				if (auto ts = t - gtl::seq::clock_t::now(); ts > 3s)
+					t = gtl::seq::clock_t::now() + 3s;
+				std::this_thread::sleep_until(t);
+			} while (!driver.IsDone());
+			fmt::print("Sequence1 result : {}\n", future.get());
 
-		// start simple sequence
-		auto future = driver.CreateChildSequence("SimpleSequence", &Sequence1);
-		do {
-			auto t = driver.Dispatch();
-			if (driver.IsDone())
-				break;
-			if (auto ts = t - gtl::seq::clock_t::now(); ts > 3s)
-				t = gtl::seq::clock_t::now() + 3s;
-			std::this_thread::sleep_until(t);
-		} while (!driver.IsDone());
-		fmt::print("Sequence1 result : {}\n", future.get());
+			fmt::print("End : Simple\n");
+		} catch (std::exception& e) {
+			fmt::print("Exception : {}\n", e.what());
+		}
 
-		fmt::print("\n");
 
-		// start tree sequence
-		driver.CreateChildSequence("TreeSequence", &TopSeq);
-		do {
-			auto t = driver.Dispatch();
-			if (driver.IsDone())
-				break;
-			if (auto ts = t - gtl::seq::clock_t::now(); ts > 3s)
-				t = gtl::seq::clock_t::now() + 3s;
-			std::this_thread::sleep_until(t);
-		} while (!driver.IsDone());
+		try {
+			seq_t driver;
 
-		fmt::print("End\n");
-	} catch (std::exception& e) {
-		fmt::print("Exception : {}\n", e.what());
-	}
+			fmt::print("\n\nBegin : Tree Sequence\n");
 
-	if constexpr (true) {
-		gtl::seq::v01::xSequenceAny driver;
+			// start tree sequence
+			driver.CreateChildSequence("TreeSequence", &TopSeq);
+			do {
+				gtl::seq::clock_t::time_point t = driver.Dispatch();
+				if (driver.IsDone())
+					break;
+				if (auto ts = t - gtl::seq::clock_t::now(); ts > 3s)
+					t = gtl::seq::clock_t::now() + 3s;
+				std::this_thread::sleep_until(t);
+			} while (!driver.IsDone());
 
-		fmt::print("Creating 2 sequences returning string and int respectively\n");
-
-		auto f1 = driver.CreateChildSequence("SeqReturningString", &SeqReturningString);
-		auto f2 = driver.CreateChildSequence("SeqReturningInt", &SeqReturningInt);
-
-		do {
-			auto t = driver.Dispatch();
-			if (driver.IsDone())
-				break;
-			if (auto ts = t - gtl::seq::clock_t::now(); ts > 3s)
-				t = gtl::seq::clock_t::now() + 3s;
-			std::this_thread::sleep_until(t);
-		} while (!driver.IsDone());
-
-		fmt::print("Result of SeqReturningString : {}\n", f1.get());
-		fmt::print("Result of SeqReturningInt : {}\n", f2.get());
-
-		fmt::print("End\n");
+			fmt::print("End : Tree Sequence\n");
+		} catch (std::exception& e) {
+			fmt::print("Exception : {}\n", e.what());
+		}
 	}
 
 }

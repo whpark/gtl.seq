@@ -18,9 +18,8 @@ namespace gtl::seq::test {
 	namespace chrono = std::chrono;
 
 	using seq_t = gtl::seq::TSequence<std::string>;
-	using coro_t = seq_t::coro_t;
 	using seq_map_t = gtl::seq::TSequenceMap<seq_t::result_t>;
-
+	using coro_t = seq_t::coro_t;
 
 	//-----
 	class CApp : public seq_map_t {
@@ -28,9 +27,9 @@ namespace gtl::seq::test {
 		CApp(seq_t& driver) : seq_map_t("top", driver) {
 		}
 		void Run() {
-			auto* driver = GetSequenceDriver();
+			seq_t* driver = GetSequenceDriver();
 			do {
-				auto t = driver->Dispatch();
+				gtl::seq::clock_t::time_point t = driver->Dispatch();
 				if (driver->IsDone())
 					break;
 				if (auto ts = t - gtl::seq::clock_t::now(); ts > 3s)
@@ -40,7 +39,7 @@ namespace gtl::seq::test {
 		}
 	};
 
-	auto ms(auto dur) {
+	std::chrono::milliseconds ms(auto dur) {
 		return std::chrono::duration_cast<std::chrono::milliseconds>(dur);
 	}
 
@@ -64,7 +63,7 @@ namespace gtl::seq::test {
 			fmt::print("{}: Begin\n", funcname);
 
 			// call this->task2
-			auto future = CreateChildSequence("task2", fmt::format("Greeting from {}", funcname));
+			std::future<seq_t::result_t> future = CreateChildSequence("task2", fmt::format("Greeting from {}", funcname));
 			co_await WaitForChild();
 			fmt::print("{}: child done: {}\n", funcname, future.get());
 
@@ -79,7 +78,7 @@ namespace gtl::seq::test {
 			fmt::print("{}: Begin param: {}\n", funcname, param);
 
 			// call c2::taskA
-			auto future = CreateChildSequence("c2", "taskA", fmt::format("Greeting from {}", funcname));
+			std::future<seq_t::result_t> future = CreateChildSequence("c2", "taskA", fmt::format("Greeting from {}", funcname));
 			co_await WaitForChild();
 			fmt::print("{}: child done: {}\n", funcname, future.get());
 
@@ -111,7 +110,7 @@ namespace gtl::seq::test {
 			fmt::print("{}: Begin param: {}\n", funcname, param);
 
 			// call c2::taskA
-			auto future = CreateChildSequence("taskB", fmt::format("Greeting from {}", funcname));
+			std::future<std::string> future = CreateChildSequence("taskB", fmt::format("Greeting from {}", funcname));
 			co_await WaitForChild();
 			fmt::print("{}: child done: {}\n", funcname, future.get());
 
@@ -141,19 +140,21 @@ namespace gtl::seq::test {
 int main() {
 	using namespace gtl::seq::test;
 
-	fmt::print("start\n");
+	{
+		fmt::print("start\n");
 
-	seq_t driver;
-	CApp app(driver);
+		seq_t driver;
+		CApp app(driver);
 
 
-	C1 c1("c1", app);
-	C2 c2("c2", app);
+		C1 c1("c1", app);
+		C2 c2("c2", app);
 
-	c1.CreateRootSequence("task1");	// c1::task1 -> c1::task2 -> c2::taskA -> c2::taskB
+		c1.CreateRootSequence("task1");	// c1::task1 -> c1::task2 -> c2::taskA -> c2::taskB
 
-	app.Run();
+		app.Run();
 
-	fmt::print("done\n");
+		fmt::print("done\n");
 
+	}
 }
