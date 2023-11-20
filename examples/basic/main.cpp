@@ -7,188 +7,174 @@
 #include <fmt/core.h>
 #include <fmt/xchar.h>
 #include <fmt/chrono.h>
-
-//#include <ctre.hpp>
-
 #include "gtl/sequence.h"
 #include "gtl/sequence_any.h"
 #include "gtl/sequence_map.h"
 
-using seq_t = gtl::seq::TSequence<std::string>;
-using coro_t = seq_t::coro_t;
-using seq_map_t = gtl::seq::TSequenceMap<seq_t::result_t>;
+namespace gtl::seq::test {
 
-using namespace std::literals;
-namespace chrono = std::chrono;
-//using namespace gtl::literals;
-
-//std::future<int> asyncAdd(int a, int b) {
-//	return std::async(std::launch::async, [a, b]() {
-//		return a + b;
-//	});
-//}
-//
-//std::future<void> asyncPrint(int value) {
-//	co_await std::chrono::seconds(1);
-//	//std::cout << "Async value: " << value << std::endl;
-//}
-//
-
-coro_t Sequence1(seq_t& seq) {
-
+	using namespace std::literals;
+	//using namespace gtl::literals;
 	namespace chrono = std::chrono;
-	auto t0 = chrono::steady_clock::now();
 
-	// do print something
-	fmt::print("step1\n");
+	using seq_t = gtl::seq::TSequence<std::string>;
+	using coro_t = seq_t::coro_t;
+	using seq_map_t = gtl::seq::TSequenceMap<seq_t::result_t>;
 
-	fmt::print("waiting 1 sec, and must be timeout.\n");
-	bool bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
-		auto t = gtl::seq::clock_t::now();
-		fmt::print("wating ... {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(t-t0));
-		return t-t0 > 3s;
-	}, 100ms, 1s);
-	fmt::print("waiting result : {}\n", bOK ? "OK" : "Timeout");
+	coro_t Sequence1(seq_t& seq) {
+		namespace chrono = std::chrono;
+		auto t0 = chrono::steady_clock::now();
 
-	fmt::print("waiting 1 sec, and may be or may not be timeout.\n");
-	bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
-		auto t = gtl::seq::clock_t::now();
-		fmt::print("wating ... {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(t-t0));
-		return t-t0 > 1s;
-	}, 100ms, 2s);
-	fmt::print("waiting result : {}\n", bOK ? "OK" : "Timeout");
+		// do print something
+		fmt::print("step1\n");
 
+		fmt::print("waiting 1 sec, and must be timeout.\n");
+		bool bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
+			auto t = gtl::seq::clock_t::now();
+			fmt::print("wating ... {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(t-t0));
+			return t-t0 > 3s;
+		}, 100ms, 1s);
+		fmt::print("waiting result : {}\n", bOK ? "OK" : "Timeout");
 
-	// Wait For 1s
-	co_await seq.WaitFor(40ms);
-
-	// do print something
-	auto t1 = chrono::steady_clock::now();
-	fmt::print("step2 : {:>8}\n", chrono::duration_cast<chrono::milliseconds>(t1 - t0));
-
-	co_await seq.WaitUntil(gtl::seq::clock_t::now() + 1ms);
-
-	auto t2 = chrono::steady_clock::now();
-	fmt::print("step3 : {:>8}\n", chrono::duration_cast<chrono::milliseconds>(t2 - t1));
-
-	co_return fmt::format("{} ended. take {}", seq.GetName(), chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - t0));
-}
-
-coro_t TopSeq(seq_t&);
-coro_t Child1(seq_t&);
-coro_t Child1_1(seq_t&);
-coro_t Child1_2(seq_t&);
-coro_t Child2(seq_t&);
+		fmt::print("waiting 1 sec, and may be or may not be timeout.\n");
+		bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
+			auto t = gtl::seq::clock_t::now();
+			fmt::print("wating ... {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(t-t0));
+			return t-t0 > 1s;
+		}, 100ms, 2s);
+		fmt::print("waiting result : {}\n", bOK ? "OK" : "Timeout");
 
 
-coro_t TopSeq(seq_t& seq) {
+		// Wait For 1s
+		co_await seq.WaitFor(40ms);
 
-	auto sl = std::source_location::current();
-	auto funcname = seq.GetName();// sl.function_name();
+		// do print something
+		auto t1 = chrono::steady_clock::now();
+		fmt::print("step2 : {:>8}\n", chrono::duration_cast<chrono::milliseconds>(t1 - t0));
 
-	// step 1
-	fmt::print("{}: Begin\n", funcname);
-	fmt::print("{}: Creating Child1\n", funcname);
-	auto t0 = gtl::seq::clock_t::now();
-	auto f = seq.CreateChildSequence("Child1", &Child1);
+		co_await seq.WaitUntil(gtl::seq::clock_t::now() + 1ms);
 
-	co_await seq.WaitForChild();
+		auto t2 = chrono::steady_clock::now();
+		fmt::print("step3 : {:>8}\n", chrono::duration_cast<chrono::milliseconds>(t2 - t1));
 
-	// step 2
-	auto t1 = gtl::seq::clock_t::now();
-	fmt::print("{}: Child 1 Done, {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1-t0));
-
-	auto t2 = gtl::seq::clock_t::now();
-	fmt::print("{}: WaitFor 100ms, {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t2 - t1));
-	co_await seq.WaitFor(100ms);
-
-	// step 3
-	fmt::print("{}: End\n", funcname);
-
-	co_return "";
-}
-
-coro_t Child1(seq_t& seq) {
-	auto sl = std::source_location::current();
-	auto funcname = seq.GetName();// sl.function_name();
-
-	// step 1
-	fmt::print("{}: Begin\n", funcname);
-	fmt::print("{}: Creating Child1_1, Child1_2\n", funcname);
-	auto t0 = gtl::seq::clock_t::now();
-	seq.CreateChildSequence("Child1_1", &Child1_1);
-	seq.CreateChildSequence("Child1_2", &Child1_2);
-
-	co_await seq.WaitForChild();
-
-	auto t1 = gtl::seq::clock_t::now();
-	fmt::print("{}: Child1_1, Child1_2 Done. {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1 - t0));
-
-	// step 3
-	fmt::print("{}: End\n", funcname);
-	
-	co_return "";
-}
-
-coro_t Child1_1(seq_t& seq) {
-
-	auto sl = std::source_location::current();
-	auto funcname = seq.GetName();// sl.function_name();
-
-	auto t0 = gtl::seq::clock_t::now();
-
-	// step 1
-	fmt::print("{}: Begin\n", funcname);
-	for (int i = 0; i < 5; i++) {
-		auto t1 = gtl::seq::clock_t::now();
-		fmt::print("{}: doing some job... and wait for 200ms : {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1-t0));
-		co_await seq.WaitFor(200ms);
+		co_return fmt::format("{} ended. take {}", seq.GetName(), chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - t0));
 	}
-	fmt::print("{}: End. Creating Child1_1, Child1_2\n", funcname);
-	
-	co_return "";
-}
 
-coro_t Child1_2(seq_t& seq) {
-	auto sl = std::source_location::current();
-	auto funcname = seq.GetName();// sl.function_name();
+	coro_t TopSeq(seq_t&);
+	coro_t Child1(seq_t&);
+	coro_t Child1_1(seq_t&);
+	coro_t Child1_2(seq_t&);
+	coro_t Child2(seq_t&);
 
-	auto t0 = gtl::seq::clock_t::now();
 
-	// step 1
-	fmt::print("{}: Begin\n", funcname);
-	for (int i = 0; i < 5; i++) {
+	coro_t TopSeq(seq_t& seq) {
+		auto sl = std::source_location::current();
+		auto funcname = seq.GetName();// sl.function_name();
+
+		// step 1
+		fmt::print("{}: Begin\n", funcname);
+		fmt::print("{}: Creating Child1\n", funcname);
+		auto t0 = gtl::seq::clock_t::now();
+		auto f = seq.CreateChildSequence("Child1", &Child1);
+
+		co_await seq.WaitForChild();
+
+		// step 2
 		auto t1 = gtl::seq::clock_t::now();
-		fmt::print("{}: doing some job... and wait for 200ms : {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1 - t0));
-		co_await seq.WaitFor(200ms);
+		fmt::print("{}: Child 1 Done, {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1-t0));
+
+		auto t2 = gtl::seq::clock_t::now();
+		fmt::print("{}: WaitFor 100ms, {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t2 - t1));
+		co_await seq.WaitFor(100ms);
+
+		// step 3
+		fmt::print("{}: End\n", funcname);
+
+		co_return "";
 	}
-	fmt::print("{}: End. Creating Child1_1, Child1_2\n", funcname);
+
+	coro_t Child1(seq_t& seq) {
+		auto sl = std::source_location::current();
+		auto funcname = seq.GetName();// sl.function_name();
+
+		// step 1
+		fmt::print("{}: Begin\n", funcname);
+		fmt::print("{}: Creating Child1_1, Child1_2\n", funcname);
+		auto t0 = gtl::seq::clock_t::now();
+		seq.CreateChildSequence("Child1_1", &Child1_1);
+		seq.CreateChildSequence("Child1_2", &Child1_2);
+
+		co_await seq.WaitForChild();
+
+		auto t1 = gtl::seq::clock_t::now();
+		fmt::print("{}: Child1_1, Child1_2 Done. {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1 - t0));
+
+		// step 3
+		fmt::print("{}: End\n", funcname);
 	
-	co_return "";
-}
+		co_return "";
+	}
 
-coro_t Child2(seq_t& seq) {
-	co_return "";
-}
+	coro_t Child1_1(seq_t& seq) {
+		auto sl = std::source_location::current();
+		auto funcname = seq.GetName();// sl.function_name();
 
-gtl::seq::v01::TCoroutineHandle<std::string> SeqReturningString(gtl::seq::v01::xSequenceAny& seq) {
-	auto t0 = chrono::steady_clock::now();
-	auto str = fmt::format("{} ended. take {}", seq.GetName(), chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - t0));
+		auto t0 = gtl::seq::clock_t::now();
 
-	co_return std::move(str);
-}
+		// step 1
+		fmt::print("{}: Begin\n", funcname);
+		for (int i = 0; i < 5; i++) {
+			auto t1 = gtl::seq::clock_t::now();
+			fmt::print("{}: doing some job... and wait for 200ms : {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1-t0));
+			co_await seq.WaitFor(200ms);
+		}
+		fmt::print("{}: End. Creating Child1_1, Child1_2\n", funcname);
+	
+		co_return "";
+	}
 
-gtl::seq::v01::TCoroutineHandle<int> SeqReturningInt(gtl::seq::v01::xSequenceAny& seq) {
-	bool bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
-		auto t = gtl::seq::clock_t::now();
-		fmt::print("SeqReturningInt : {}\n", chrono::duration_cast<chrono::milliseconds>(t - t0));
-		return t - t0 > 1s;
-	}, 100ms, 2s);
-	co_return 3141592;
-}
+	coro_t Child1_2(seq_t& seq) {
+		auto sl = std::source_location::current();
+		auto funcname = seq.GetName();// sl.function_name();
 
+		auto t0 = gtl::seq::clock_t::now();
+
+		// step 1
+		fmt::print("{}: Begin\n", funcname);
+		for (int i = 0; i < 5; i++) {
+			auto t1 = gtl::seq::clock_t::now();
+			fmt::print("{}: doing some job... and wait for 200ms : {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1 - t0));
+			co_await seq.WaitFor(200ms);
+		}
+		fmt::print("{}: End. Creating Child1_1, Child1_2\n", funcname);
+	
+		co_return "";
+	}
+
+	coro_t Child2(seq_t& seq) {
+		co_return "";
+	}
+
+	gtl::seq::v01::TCoroutineHandle<std::string> SeqReturningString(gtl::seq::v01::xSequenceAny& seq) {
+		auto t0 = chrono::steady_clock::now();
+		auto str = fmt::format("{} ended. take {}", seq.GetName(), chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - t0));
+
+		co_return std::move(str);
+	}
+
+	gtl::seq::v01::TCoroutineHandle<int> SeqReturningInt(gtl::seq::v01::xSequenceAny& seq) {
+		bool bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
+			auto t = gtl::seq::clock_t::now();
+			fmt::print("SeqReturningInt : {}\n", chrono::duration_cast<chrono::milliseconds>(t - t0));
+			return t - t0 > 1s;
+		}, 100ms, 2s);
+		co_return 3141592;
+	}
+
+}	// namespace gtl::seq::test
 
 int main() {
+	using namespace gtl::seq::test;
 
 	if constexpr (true) try {
 		seq_t driver;
@@ -224,7 +210,6 @@ int main() {
 	} catch (std::exception& e) {
 		fmt::print("Exception : {}\n", e.what());
 	}
-
 
 	if constexpr (true) {
 		gtl::seq::v01::xSequenceAny driver;
