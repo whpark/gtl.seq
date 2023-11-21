@@ -38,12 +38,13 @@ namespace gtl::seq::inline v01 {
 		mutable clock_t::time_point tNextDispatchChild{ clock_t::time_point::max() };	// cache
 		//bool bDone{false};
 
-		struct {
+		struct sPredicate {
 			std::function<bool()> func;
 			clock_t::time_point t0;
 			clock_t::duration interval, timeout;
 			std::promise<bool> result;
-		} pred;
+		};
+		sPredicate pred;
 
 	public:
 		sState(clock_t::time_point t = clock_t::now()) : tNextDispatch(t) {}
@@ -66,7 +67,7 @@ namespace gtl::seq::inline v01 {
 	class ICoroutineHandle;
 	template < typename tResult >
 	class TCoroutineHandle;
-	template < typename tResult, template < typename tResult > typename tCoroutineHandle >
+	template < typename tResult, template < typename tResult2 > typename tCoroutineHandle >
 	struct TPromise;
 
 	//-------------------------------------------------------------------------
@@ -126,7 +127,7 @@ namespace gtl::seq::inline v01 {
 		TCoroutineHandle(std::coroutine_handle<promise_type>&& h) : base_t(std::exchange(h, nullptr)) {}
 		TCoroutineHandle(TCoroutineHandle const&) = delete;
 		TCoroutineHandle(TCoroutineHandle&& b) : base_t(std::move(b)) { ((base_t&)b) = nullptr; }
-		TCoroutineHandle& operator = (nullptr_t) { Destroy(); return *this; }
+		TCoroutineHandle& operator = (std::nullptr_t) { Destroy(); return *this; }
 		TCoroutineHandle& operator = (TCoroutineHandle const&) = delete;
 		TCoroutineHandle& operator = (TCoroutineHandle&& b) { Destroy(); *(base_t*)this = std::move(b);  ((base_t&)b) = nullptr; return *this;  }
 		virtual ~TCoroutineHandle() { Destroy(); }
@@ -148,7 +149,7 @@ namespace gtl::seq::inline v01 {
 
 	//-------------------------------------------------------------------------
 	/// @brief 
-	template < typename tResult, template < typename tResult > typename tCoroutineHandle >
+	template < typename tResult, template < typename tResult2 > typename tCoroutineHandle >
 	struct TPromise {
 		using result_t = tResult;
 		using coroutine_t = tCoroutineHandle<result_t>;

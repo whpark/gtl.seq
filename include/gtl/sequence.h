@@ -181,7 +181,7 @@ namespace gtl::seq::inline v01 {
 		std::future<result_t> CreateChildSequence(seq_id_t name, std::function<coro_t(this_t&, tArgs&& ...)> func, tArgs&&... args) {
 			if constexpr (false) {	// todo: do I need this?
 				if (std::this_thread::get_id() != m_threadID) {
-					throw std::exception("CreateChildSequence() must be called from the same thread as the driver");
+					throw std::runtime_error("CreateChildSequence() must be called from the same thread as the driver");
 				}
 			}
 
@@ -282,7 +282,7 @@ namespace gtl::seq::inline v01 {
 		/// @return next dispatch time
 		clock_t::time_point Dispatch() {
 			if (std::this_thread::get_id() != m_threadID) [[ unlikely ]] {
-				throw std::exception("Dispatch() must be called from the same thread as the driver");
+				throw std::runtime_error("Dispatch() must be called from the same thread as the driver");
 				return {};
 			}
 			clock_t::time_point tNextDispatch{clock_t::time_point::max()};
@@ -330,7 +330,7 @@ namespace gtl::seq::inline v01 {
 			auto const t0 = clock_t::now();
 
 			if (s_seqCurrent) [[ unlikely ]] {
-				throw std::exception("Dispatch() must NOT be called from Dispatch. !!! No ReEntrance");
+				throw std::runtime_error("Dispatch() must NOT be called from Dispatch. !!! No ReEntrance");
 				return false;
 			}
 

@@ -256,6 +256,11 @@ namespace gtl::seq::inline v01 {
 				return cur->WaitForChild();
 			throw std::exception("WaitFor() must be called from sequence function");
 		}
+		auto Wait(std::function<bool()> pred, clock_t::duration interval, clock_t::duration timeout = clock_t::duration::max()) {
+			if (auto* cur = GetCurrentSequence())
+				return cur->Wait(std::move(pred), interval, timeout);
+			throw std::exception("Wait() must be called from sequence function");
+		}
 	};
 
 };

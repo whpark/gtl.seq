@@ -82,6 +82,25 @@ namespace gtl::seq::test {
 			co_await WaitForChild();
 			fmt::print("{}: child done: {}\n", funcname, future.get());
 
+
+			// step - wait for other thread
+			fmt::print("SeqReturningInt : step3 wait...\n");
+			auto i = 10;
+			std::jthread count_down( [&](auto stop) {
+				while (!stop.stop_requested()) {
+					fmt::print("in other thread: count down {}\n", i--);
+					std::this_thread::sleep_for(100ms);
+				}
+			});
+
+			co_await seq.Wait([&, t0 = gtl::seq::clock_t::now()] {	// wait until i == 0
+				return i == 0;
+			}, 1ms);
+
+			count_down.request_stop();
+			count_down.join();
+
+
 			auto str = fmt::format("{}: End : {}", funcname, ms(gtl::seq::clock_t::now() - t0));
 			fmt::print("{}\n", str);
 

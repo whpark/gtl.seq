@@ -21,20 +21,69 @@ namespace gtl::seq::test {
 	template < typename tReturn >
 	using tcoro_t = seq_t::tcoro_t<tReturn>;
 
-	tcoro_t<std::string> SeqReturningString(gtl::seq::v01::xSequenceTReturn& seq) {
+	tcoro_t<std::string> SeqReturningString(seq_t& seq) {
 		auto t0 = chrono::steady_clock::now();
 		auto str = fmt::format("{} ended. take {}", seq.GetName(), chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - t0));
 
 		co_return std::move(str);
 	}
 
-	tcoro_t<int> SeqReturningInt(gtl::seq::v01::xSequenceTReturn& seq) {
+	tcoro_t<int> SeqReturningInt(seq_t& seq) {
+		fmt::print("Start: {}\n", seq.GetName());
+
+		// step 1
+		// do something ...
+		fmt::print("SeqReturningInt : step1 wait 1s ...\n");
+		co_await seq.WaitFor(1000ms);
+
+		// step 2
+		// do something ...
+		fmt::print("SeqReturningInt : step2 wait 1s, printing ...\n");
 		bool bOK = co_await seq.Wait([t0 = gtl::seq::clock_t::now()] {
 			auto t = gtl::seq::clock_t::now();
-			fmt::print("SeqReturningInt : {}\n", chrono::duration_cast<chrono::milliseconds>(t - t0));
+			fmt::print("SeqReturningInt : step2 {}\n", chrono::duration_cast<chrono::milliseconds>(t - t0));
 			return t - t0 > 1s;
 		}, 100ms, 2s);
-		co_return 3141592;
+
+		// step 3
+		fmt::print("SeqReturningInt : step3 wait...\n");
+		auto i = 10;
+		std::jthread count_down( [&](auto stop) {
+			while (!stop.stop_requested()) {
+				fmt::print("SeqReturningInt : step3 count down {}\n", i--);
+				std::this_thread::sleep_for(100ms);
+			}
+		});
+
+		co_await seq.Wait([&, t0 = gtl::seq::clock_t::now()] {	// wait until i == 0
+			return i == 0;
+		}, 1ms);
+		count_down.request_stop();
+		count_down.join();
+
+		// step 4
+		fmt::print("SeqReturningInt : step4...\n");
+
+		co_return bOK ? 3141592 : -3141592;
+	}
+
+	tcoro_t<int> Seq1(seq_t& seq) {
+		fmt::print("{} : START\n", seq.GetName());
+		std::function<bool()> pred = [t0 = std::chrono::steady_clock::now()] {
+			return std::chrono::steady_clock::now() - t0 >= 10s;
+		};
+		bool bOK = co_await seq.Wait(pred, 10ms, 10s);
+		fmt::print("{} : END\n", seq.GetName());
+		co_return 0;
+	}
+
+	tcoro_t<int> Seq2(seq_t& seq) {
+		fmt::print("{} : START\n", seq.GetName());
+		bool bOK = co_await seq.Wait([t0 = std::chrono::steady_clock::now()] {
+			return std::chrono::steady_clock::now() - t0 >= 5s;
+		}, 1ms, 10s);
+		fmt::print("{} : END\n", seq.GetName());
+		co_return 0;
 	}
 
 }	// namespace gtl::seq::test
