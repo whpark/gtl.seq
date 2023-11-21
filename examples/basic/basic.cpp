@@ -77,13 +77,13 @@ namespace gtl::seq::test {
 		fmt::print("{}: Begin\n", funcname);
 		fmt::print("{}: Creating Child1\n", funcname);
 		auto t0 = gtl::seq::clock_t::now();
-		auto f = seq.CreateChildSequence("Child1", &Child1);
+		std::future<seq_t::result_t> f = seq.CreateChildSequence("Child1", &Child1);	// wait for std::string
 
 		co_await seq.WaitForChild();
 
 		// step 2
 		auto t1 = gtl::seq::clock_t::now();
-		fmt::print("{}: Child 1 Done, {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t1-t0));
+		fmt::print("{}: Child 1 Done, Result : {},  in {}\n", funcname, f.get(), chrono::duration_cast<chrono::milliseconds>(t1-t0));
 
 		auto t2 = gtl::seq::clock_t::now();
 		fmt::print("{}: WaitFor 100ms, {}\n", funcname, chrono::duration_cast<chrono::milliseconds>(t2 - t1));
@@ -92,7 +92,7 @@ namespace gtl::seq::test {
 		// step 3
 		fmt::print("{}: End\n", funcname);
 
-		co_return "";
+		co_return f.get();
 	}
 
 	coro_t Child1(seq_t& seq) {
@@ -114,7 +114,7 @@ namespace gtl::seq::test {
 
 		fmt::print("{}: End\n", funcname);
 	
-		co_return "";
+		co_return "OK";
 	}
 
 	coro_t Child1_1(seq_t& seq) {
@@ -132,7 +132,7 @@ namespace gtl::seq::test {
 		}
 		fmt::print("{}: End. Creating Child1_1, Child1_2\n", funcname);
 	
-		co_return "";
+		co_return "OK";
 	}
 
 	coro_t Child1_2(seq_t& seq) {
@@ -150,7 +150,7 @@ namespace gtl::seq::test {
 		}
 		fmt::print("{}: End. Creating Child1_1, Child1_2\n", funcname);
 	
-		co_return "";
+		co_return "OK";
 	}
 
 	coro_t Child2(seq_t& seq) {
