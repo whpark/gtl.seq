@@ -153,6 +153,10 @@ int main() {
 
 ```
 
+- event-map like example
+	examples/map.cpp
+	bind Sequence Function name using "id"
+
 
 License
 This project is licensed under MIT License.
