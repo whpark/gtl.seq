@@ -34,7 +34,7 @@ namespace gtl::seq::inline v01 {
 		using handler_t = std::function<coro_t(seq_t&, param_t&&)>;
 		struct sHandler {
 			handler_t handler;
-			size_t max_sequence{};
+			size_t max_sequence_count{};
 		};
 		using map_t = std::map<seq_id_t, sHandler>;
 
@@ -119,12 +119,12 @@ namespace gtl::seq::inline v01 {
 
 		//-----------------------------------
 		/// @brief Bind/Unbind sequence function with name
-		inline bool Bind(seq_id_t const& id, handler_t handler, size_t max_sequence = 0) {
+		inline bool Bind(seq_id_t const& id, handler_t handler, size_t max_sequence_count = 0) {
 			if (auto iter = m_mapFuncs.find(id); iter != m_mapFuncs.end())
 				return false;
 			auto& h = m_mapFuncs[id];
 			h.handler = handler;
-			h.max_sequence = max_sequence;
+			h.max_sequence_count = max_sequence_count;
 			return true;
 		}
 		inline bool Unbind(seq_id_t const& id) {
@@ -136,8 +136,8 @@ namespace gtl::seq::inline v01 {
 		}
 	protected:
 		template < typename tSelf > requires std::is_base_of_v<this_t, tSelf>
-		inline bool Bind(seq_id_t const& id, coro_t(tSelf::* handler)(seq_t&, param_t) ) {
-			return Bind(id, std::bind(handler, (tSelf*)(this), std::placeholders::_1, std::placeholders::_2));
+		inline bool Bind(seq_id_t const& id, coro_t(tSelf::* handler)(seq_t&, param_t), size_t max_sequence_count = 0) {
+			return Bind(id, std::bind(handler, (tSelf*)(this), std::placeholders::_1, std::placeholders::_2), max_sequence_count);
 		}
 
 	public:
@@ -146,7 +146,8 @@ namespace gtl::seq::inline v01 {
 		inline sHandler const& FindHandler(seq_id_t const& sequence) const {
 			if (auto iter = m_mapFuncs.find(sequence); iter != m_mapFuncs.end())
 				return iter->second;
-			return {};
+			static sHandler const empty;
+			return empty;
 		}
 
 		//-----------------------------------
@@ -175,21 +176,22 @@ namespace gtl::seq::inline v01 {
 			return const_cast<this_t*>( (const_cast<this_t const*>(this))->FindUnitDFS(unit) );
 		}
 	#endif
-		//-----------------------------------
-		template < typename tSelf >
-			requires std::is_base_of_v<this_t, tSelf>
-		inline auto CreateSequence(size_t max_sequence, seq_t* parent, seq_id_t running, tSelf* self, coro_t(tSelf::*handler)(seq_t&, param_t), param_t params = {}) {
-			if (!handler)
-				throw std::exception("no handler");
-			if (!parent)
-				parent = self->GetCurrentSequence();	// current sequence
-			if (!parent)
-				parent = self->GetSequenceDriver();		// top most
-			if (!parent)
-				throw std::exception("no parent seq");
-			return parent->CreateChildSequence<param_t>(
-				max_sequence, std::move(running), std::bind(handler, self, std::placeholders::_1, std::placeholders::_2), std::move(params));
-		}
+		////-----------------------------------
+		//template < typename tSelf >
+		//	requires std::is_base_of_v<this_t, tSelf>
+		//inline auto CreateSequence(seq_t* parent, seq_id_t running, tSelf* self, size_t max_sequence_count, coro_t(tSelf::*handler)(seq_t&, param_t), param_t params = {}) {
+		//	if (!handler)
+		//		throw std::exception("no handler");
+		//	if (!parent)
+		//		parent = self->GetCurrentSequence();	// current sequence
+		//	if (!parent)
+		//		parent = self->GetSequenceDriver();		// top most
+		//	if (!parent)
+		//		throw std::exception("no parent seq");
+		//	return parent->CreateChildSequence<param_t>(
+		//		std::move(running), handler.max_sequence_count, std::bind(handler, self, std::placeholders::_1, std::placeholders::_2), std::move(params));
+		//}
+
 		//-----------------------------------
 		inline auto CreateSequence(seq_t* parent, unit_id_t unit, seq_id_t name, seq_id_t running, param_t params = {}) {
 			this_t* unitTarget = unit.empty() ? this : GetTopMost()->FindUnitDFS(unit);
@@ -205,7 +207,7 @@ namespace gtl::seq::inline v01 {
 			if (!handler.handler)
 				throw std::exception("no handler");
 			return parent->CreateChildSequence<param_t>(
-				handler.max_sequence, running.empty() ? std::move(name) : std::move(running), handler.handler, std::move(params));
+				running.empty() ? std::move(name) : std::move(running), handler.max_sequence_count, handler.handler, std::move(params));
 		}
 
 		// root sequence
@@ -235,7 +237,7 @@ namespace gtl::seq::inline v01 {
 		size_t BroadcastSequence(seq_t& parent, seq_id_t name, param_t params = {}) {
 			size_t count{};
 			if (auto handler = FindHandler(name)) {
-				parent.CreateChildSequence<std::shared_ptr<param_t>>(handler.max_sequence, name, handler.handler, std::move(params));
+				parent.CreateChildSequence<std::shared_ptr<param_t>>(handler.max_sequence_count, name, handler.handler, std::move(params));
 				count++;
 			}
 			for (auto* child : m_mapChildren) {

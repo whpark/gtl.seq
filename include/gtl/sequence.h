@@ -178,7 +178,7 @@ namespace gtl::seq::inline v01 {
 		/// @param ...args for coroutine function. must be moved or copied.
 		/// @return 
 		template < typename ... tArgs >
-		std::future<result_t> CreateChildSequence(size_t max_sequence, seq_id_t name, std::function<coro_t(this_t&, tArgs&& ...)> func, tArgs&&... args) {
+		std::future<result_t> CreateChildSequence(seq_id_t name, size_t max_sequence_count, std::function<coro_t(this_t&, tArgs&& ...)> func, tArgs&&... args) {
 			if constexpr (false) {	// todo: do I need this?
 				if (std::this_thread::get_id() != m_threadID) {
 					throw std::runtime_error("CreateChildSequence() must be called from the same thread as the driver");
@@ -190,11 +190,9 @@ namespace gtl::seq::inline v01 {
 			if (std::this_thread::get_id() != m_threadID)
 				lock.emplace(m_mtxChildren);
 
-			if (max_sequence) {
-				auto count = std::count_if(m_children.begin(), m_children.end(), [&](auto const& child) {
-					return child.m_name == name;
-				});
-				if (count >= max_sequence) {
+			if (max_sequence_count) {
+				size_t count = std::ranges::count_if(m_children, [&](auto const& child) { return child.m_name == name; });
+				if (count >= max_sequence_count) {
 					throw std::runtime_error("CreateChildSequence() : too many child sequence");
 				}
 			}
@@ -212,12 +210,12 @@ namespace gtl::seq::inline v01 {
 		template < typename ... tArgs >
 		auto CreateChildSequence(seq_id_t name, coro_t(*func)(this_t&, tArgs&& ...), tArgs&&... args) {
 			std::function<coro_t(this_t&, tArgs&& ...)> f = func;
-			return CreateChildSequence(0, std::move(name), std::move(f), std::forward<tArgs>(args)...);
+			return CreateChildSequence(std::move(name), 0, std::move(f), std::forward<tArgs>(args)...);
 		}
 		template < typename ... tArgs >
-		auto CreateChildSequence(size_t max_sequence, seq_id_t name, coro_t(*func)(this_t&, tArgs&& ...), tArgs&&... args) {
+		auto CreateChildSequence(seq_id_t name, size_t max_sequence_count, coro_t(*func)(this_t&, tArgs&& ...), tArgs&&... args) {
 			std::function<coro_t(this_t&, tArgs&& ...)> f = func;
-			return CreateChildSequence(max_sequence, std::move(name), std::move(f), std::forward<tArgs>(args)...);
+			return CreateChildSequence(std::move(name), max_sequence_count, std::move(f), std::forward<tArgs>(args)...);
 		}
 
 		/// @brief Find Child Sequence (Direct Child Only)
