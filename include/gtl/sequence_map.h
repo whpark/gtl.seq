@@ -181,13 +181,13 @@ namespace gtl::seq::inline v01 {
 		//	requires std::is_base_of_v<this_t, tSelf>
 		//inline auto CreateSequence(seq_t* parent, seq_id_t running, tSelf* self, size_t max_sequence_count, coro_t(tSelf::*handler)(seq_t&, param_t), param_t params = {}) {
 		//	if (!handler)
-		//		throw std::exception("no handler");
+		//		throw xException("no handler");
 		//	if (!parent)
 		//		parent = self->GetCurrentSequence();	// current sequence
 		//	if (!parent)
 		//		parent = self->GetSequenceDriver();		// top most
 		//	if (!parent)
-		//		throw std::exception("no parent seq");
+		//		throw xException("no parent seq");
 		//	return parent->CreateChildSequence<param_t>(
 		//		std::move(running), handler.max_sequence_count, std::bind(handler, self, std::placeholders::_1, std::placeholders::_2), std::move(params));
 		//}
@@ -196,16 +196,16 @@ namespace gtl::seq::inline v01 {
 		inline auto CreateSequence(seq_t* parent, unit_id_t unit, seq_id_t name, seq_id_t running, param_t params = {}) {
 			this_t* unitTarget = unit.empty() ? this : GetTopMost()->FindUnitDFS(unit);
 			if (!unitTarget)
-				throw std::exception("no unit");
+				throw xException("no unit");
 			if (!parent)
 				parent = unitTarget->GetCurrentSequence();	// current sequence
 			if (!parent)
 				parent = unitTarget->GetSequenceDriver();	// top most
 			if (!parent)
-				throw std::exception("no parent seq");
+				throw xException("no parent seq");
 			auto handler = unitTarget->FindHandler(name);
 			if (!handler.handler)
-				throw std::exception("no handler");
+				throw xException("no handler");
 			return parent->CreateChildSequence<param_t>(
 				running.empty() ? std::move(name) : std::move(running), handler.max_sequence_count, handler.handler, std::move(params));
 		}
@@ -225,12 +225,12 @@ namespace gtl::seq::inline v01 {
 		inline auto CreateChildSequence(seq_id_t name, param_t params = {}) {
 			if (auto* parent = GetCurrentSequence())
 				return CreateSequence(parent, {}, std::move(name), {}, std::move(params));
-			throw std::exception("CreateChildSequence() must be called from sequence function");
+			throw xException("CreateChildSequence() must be called from sequence function");
 		}
 		inline auto CreateChildSequence(unit_id_t const& unit, seq_id_t name, param_t params) {
 			if (auto* parent = GetCurrentSequence())
 				return CreateSequence(parent, unit, std::move(name), {}, std::move(params));
-			throw std::exception("CreateChildSequence() must be called from sequence function");
+			throw xException("CreateChildSequence() must be called from sequence function");
 		}
 
 		// broadcast sequence
@@ -250,24 +250,24 @@ namespace gtl::seq::inline v01 {
 		auto WaitFor(clock_t::duration d) {
 			if (auto* cur = GetCurrentSequence())
 				return cur->WaitFor(d);
-			throw std::exception("WaitFor() must be called from sequence function");
+			throw xException("WaitFor() must be called from sequence function");
 		}
 		// co_await
 		auto WaitUntil(clock_t::time_point t) {
 			if (auto* cur = GetCurrentSequence())
 				return cur->WaitUntil(t);
-			throw std::exception("WaitFor() must be called from sequence function");
+			throw xException("WaitFor() must be called from sequence function");
 		}
 		// co_await
 		auto WaitForChild() {
 			if (auto* cur = GetCurrentSequence())
 				return cur->WaitForChild();
-			throw std::exception("WaitFor() must be called from sequence function");
+			throw xException("WaitFor() must be called from sequence function");
 		}
 		auto Wait(std::function<bool()> pred, clock_t::duration interval, clock_t::duration timeout = clock_t::duration::max()) {
 			if (auto* cur = GetCurrentSequence())
 				return cur->Wait(std::move(pred), interval, timeout);
-			throw std::exception("Wait() must be called from sequence function");
+			throw xException("Wait() must be called from sequence function");
 		}
 	};
 

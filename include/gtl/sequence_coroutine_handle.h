@@ -15,12 +15,29 @@
 #include <exception>
 #include <string>
 #include <utility>
+#include <source_location>
+#include <stdexcept>
 
 namespace gtl::seq::inline v01 {
 
 	using seq_id_t = std::string;
 	using clock_t = std::chrono::high_resolution_clock;
 	using ms_t = std::chrono::milliseconds;
+
+
+	//-------------------------------------------------------------------------
+	/// @brief exception storing file and line, function name
+	class xException : public std::runtime_error {
+	public:
+		using this_t = xException;
+		using base_t = std::runtime_error;
+
+	public:
+		using base_t::operator=;
+
+		xException(std::string msg, std::source_location sl = std::source_location::current()) noexcept :
+			base_t(std::format("{}\n\nFile\n\t{}:{}\n\nFunction\n\t{}", msg, sl.file_name(), sl.line(), sl.function_name())) {}
+	};
 
 	//-------------------------------------------------------------------------
 	struct suspend_or_not {
