@@ -209,7 +209,7 @@ namespace gtl::seq::inline v01 {
 		/// @brief Find Child Sequence (Direct Child Only)
 		/// @param name 
 		/// @return child sequence. if not found, empty child sequence.
-	#if __cpp_explicit_this_parameter
+	#ifdef __cpp_explicit_this_parameter
 		auto FindDirectChild(this auto&& self, seq_id_t const& name) -> decltype(&self) {
 			std::optional<std::scoped_lock<std::mutex>> lock;
 			if (std::this_thread::get_id() != self.m_threadID)
@@ -241,7 +241,7 @@ namespace gtl::seq::inline v01 {
 		/// @brief Find Child Sequence (Depth First Search)
 		/// @param name 
 		/// @return child sequence. if not found, empty child sequence.
-	#if __cpp_explicit_this_parameter
+	#ifdef __cpp_explicit_this_parameter
 		auto FindChildDFS(this auto&& self, seq_id_t const& name) -> decltype(&self) {
 			// todo: if called from other thread... how? use recursive mutex ?? too expansive
 			if (std::this_thread::get_id() != self.m_threadID)

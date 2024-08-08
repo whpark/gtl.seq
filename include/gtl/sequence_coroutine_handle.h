@@ -97,11 +97,11 @@ namespace gtl::seq::inline v01 {
 		using base_t = std::coroutine_handle<promise_type>;
 
 	public:
-		TSimpleCoroutineHandle(std::coroutine_handle<promise_type>&& h) : base_t(std::move(h)) { h = nullptr; }
+		TSimpleCoroutineHandle(std::coroutine_handle<promise_type>&& h) noexcept : base_t(std::move(h)) { h = nullptr; }
 		TSimpleCoroutineHandle(TSimpleCoroutineHandle const&) = delete;
-		TSimpleCoroutineHandle(TSimpleCoroutineHandle&& b) : base_t(std::move(b)) { ((base_t&)b) = nullptr; }
+		TSimpleCoroutineHandle(TSimpleCoroutineHandle&& b) noexcept : base_t(std::move(b)) { ((base_t&)b) = nullptr; }
 		TSimpleCoroutineHandle& operator = (TSimpleCoroutineHandle const&) = delete;
-		TSimpleCoroutineHandle& operator = (TSimpleCoroutineHandle&& b) { ((base_t&)*this) = std::move(b); ((base_t&)b) = nullptr; return *this; }
+		TSimpleCoroutineHandle& operator = (TSimpleCoroutineHandle&& b) noexcept { ((base_t&)*this) = std::move(b); ((base_t&)b) = nullptr; return *this; }
 		using base_t::base_t;
 
 	public:
